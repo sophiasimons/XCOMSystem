@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>XCOM Web App</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js CDN for a small telemetry chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>XCOM System: Transmitter</h1>
+      <p class="subtitle"> Send data to the XCOM bridge </p>
+    </header>
+
+    <main>
+      <section class="main-grid">
+        <div class="card">
+          <h2>File Upload</h2>
+          <div id="connectionStatus" class="connection-status"></div>
+          <div class="upload-container">
+            <input type="file" id="fileInput" class="file-input">
+            <div id="fileInfo" class="file-info"></div>
+            <button id="sendDataBtn">Send Data</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small>Select a file and click "Send Data" to transmit it to the XCOM device.</small>
+    </footer>
+
+    <!-- Modal for connection status -->
+    <div id="statusModal" class="modal">
+      <div class="modal-content">
+        <p id="modalMessage"></p>
+        <div class="modal-spinner"></div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

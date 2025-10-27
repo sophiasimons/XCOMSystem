@@ -26,16 +26,52 @@ class SerialRelay:
         self.baud = baud
         self.transport = None
         self.protocol = None
+        self._is_connected = False
+
+    async def test_connection(self):
+        """Test if we can connect to the STM32 device."""
+        if not self.serial_port:
+            return False
+        
+        try:
+            if serial_asyncio is None:
+                return False
+                
+            # Try to open the port
+            loop = asyncio.get_running_loop()
+            transport, protocol = await serial_asyncio.open_serial_connection(
+                url=self.serial_port, 
+                baudrate=self.baud
+            )
+            
+            # If we got here, connection successful
+            transport.close()
+            return True
+            
+        except Exception as e:
+            LOG.error("Failed to connect to STM32: %s", e)
+            return False
 
     async def connect(self):
         if not self.serial_port:
             LOG.info("Running in simulated mode (no serial port)")
             return
+        
         if serial_asyncio is None:
             raise RuntimeError("serial_asyncio (pyserial-asyncio) not available")
+            
         loop = asyncio.get_running_loop()
-        self.transport, self.protocol = await serial_asyncio.open_serial_connection(url=self.serial_port, baudrate=self.baud)
-        LOG.info("Connected to serial %s @ %s", self.serial_port, self.baud)
+        try:
+            self.transport, self.protocol = await serial_asyncio.open_serial_connection(
+                url=self.serial_port, 
+                baudrate=self.baud
+            )
+            self._is_connected = True
+            LOG.info("Connected to STM32 at %s @ %s", self.serial_port, self.baud)
+        except Exception as e:
+            self._is_connected = False
+            LOG.error("Failed to connect to STM32: %s", e)
+            raise
 
     async def write(self, data: bytes):
         if self.transport:
@@ -49,20 +85,66 @@ async def ws_handler(websocket, path, relay: SerialRelay):
     try:
         async for msg in websocket:
             LOG.debug("WS received: %s", msg)
-            # Expect JSON messages with {"type":"raw","data":"..."}
             try:
                 obj = json.loads(msg)
-                if obj.get("type") == "raw":
+                msg_type = obj.get("type", "")
+                
+                if msg_type == "check_connection":
+                    # Check if we can connect to the STM32
+                    is_connected = await relay.test_connection()
+                    await websocket.send(json.dumps({
+                        "type": "connection_status",
+                        "connected": is_connected
+                    }))
+                
+                elif msg_type == "file_upload":
+                    # Handle file upload
+                    if not relay._is_connected and not await relay.test_connection():
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "STM32 device not connected"
+                        }))
+                        continue
+
+                    filename = obj.get("filename", "")
+                    size = obj.get("size", 0)
+                    data = obj.get("data", "")
+                    
+                    try:
+                        # Convert base64 data to bytes and send to STM32
+                        if isinstance(data, str):
+                            import base64
+                            data = base64.b64decode(data.split(',')[1])
+                        await relay.write(data)
+                        await websocket.send(json.dumps({
+                            "type": "upload_success",
+                            "filename": filename,
+                            "size": len(data)
+                        }))
+                    except Exception as e:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": f"Failed to send file: {str(e)}"
+                        }))
+                
+                elif msg_type == "raw":
                     data = obj.get("data", "")
                     if isinstance(data, str):
                         data = data.encode()
                     await relay.write(data)
-                    # echo back
                     await websocket.send(json.dumps({"type":"ack","len":len(data)}))
+                
                 else:
-                    await websocket.send(json.dumps({"type":"error","message":"unknown type"}))
+                    await websocket.send(json.dumps({
+                        "type": "error",
+                        "message": "unknown message type"
+                    }))
+                    
             except json.JSONDecodeError:
-                await websocket.send(json.dumps({"type":"error","message":"invalid json"}))
+                await websocket.send(json.dumps({
+                    "type": "error",
+                    "message": "invalid json"
+                }))
     except Exception as e:
         LOG.info("WS client disconnected: %s", e)
 
