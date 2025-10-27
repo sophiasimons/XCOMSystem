@@ -5,14 +5,14 @@ ECE3906 Capstone project 2025-26
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [Software Installation](#section-1)
+    - [Software Installation](#section-1)
 - [Transmitting Software UI Set-up](#transmitting-software-ui-set-up)
 - [Section 3](#section-3)
 - [Section 4](#section-4)
 
-## Introduction
+# Introduction
 
-## Software Installation
+# Software Installation
 
 ## Transmitting Software UI Setup
 
