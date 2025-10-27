@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Simple host bridge that exposes a WebSocket server and relays messages to a serial port.
+"""XCOM Bridge: WebSocket server that handles file transfers to STM32.
 
 Usage:
   python bridge.py --port /dev/tty.usbserial-XXXX --baud 115200 --ws-port 8765
 
 If --port is omitted the bridge will run in simulated mode and echo messages.
 """
+
+import base64
+from file_transfer import FileTransfer, create_chunk_validator
 import argparse
 import asyncio
 import json
@@ -27,6 +30,7 @@ class SerialRelay:
         self.transport = None
         self.protocol = None
         self._is_connected = False
+        self.file_transfer = FileTransfer()
 
     async def test_connection(self):
         """Test if we can connect to the STM32 device."""
@@ -75,9 +79,34 @@ class SerialRelay:
 
     async def write(self, data: bytes):
         if self.transport:
-            self.transport.write(data)
+            # Add validation bytes
+            validated_data = data + create_chunk_validator(data)
+            self.transport.write(validated_data)
         else:
             LOG.debug("Simulated write: %r", data)
+
+    async def send_file(self, file_data: bytes, filename: str):
+        """Send a file to the STM32 in chunks"""
+        # Prepare the file for transfer
+        self.file_transfer.prepare_file(file_data, filename)
+        
+        # Send header first
+        header = self.file_transfer.get_header()
+        await self.write(header)
+        await asyncio.sleep(0.1)  # Give STM32 time to process
+
+        # Send chunks
+        while True:
+            chunk_data = self.file_transfer.get_next_chunk()
+            if chunk_data is None:
+                break
+                
+            chunk, chunk_num = chunk_data
+            await self.write(chunk)
+            LOG.info(f"Sent chunk {chunk_num}")
+            await asyncio.sleep(0.05)  # Rate limiting
+            
+        LOG.info(f"File transfer complete: {filename}")
 
 
 async def ws_handler(websocket, path, relay: SerialRelay):
