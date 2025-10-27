@@ -10,11 +10,11 @@ ECE3906 Capstone project 2025-26
 - [Section 3](#section-3)
 - [Section 4](#section-4)
 
-# Introduction
+## Introduction
 
-# Software Installation
+## Software Installation
 
-## Transmitting Software UI Setup
+### Transmitting Software UI Setup
 
 1. Cd into the host-ui folder: 
     `cd host-ui`
