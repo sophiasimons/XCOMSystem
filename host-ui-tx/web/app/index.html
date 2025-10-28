@@ -4,32 +4,38 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>XCOM Web App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <!-- Chart.js CDN for a small telemetry chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
+    <div class="connection-indicator">
+      <div class="status-dot"></div>
+      <span class="status-text">Checking connection...</span>
+    </div>
+
     <header>
       <h1>XCOM System: Transmitter</h1>
       <p class="subtitle"> Send data to the XCOM bridge </p>
     </header>
 
     <main>
-      <section class="main-grid">
-        <div class="card">
-          <h2>File Upload</h2>
+      <section class="content-center">
+          <h3>File Upload</h3>
+          <p class="instruction-text">Select a file and click "Send Data" to transmit it to the XCOM device.</p>
           <div id="connectionStatus" class="connection-status"></div>
-          <div class="upload-container">
+          <div class="upload-section">
             <input type="file" id="fileInput" class="file-input">
             <div id="fileInfo" class="file-info"></div>
             <button id="sendDataBtn">Send Data</button>
           </div>
-        </div>
       </section>
     </main>
 
     <footer>
-      <small>Select a file and click "Send Data" to transmit it to the XCOM device.</small>
     </footer>
 
     <!-- Modal for connection status -->
@@ -39,6 +45,9 @@
         <div class="modal-spinner"></div>
       </div>
     </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
 
     <script src="app.js"></script>
   </body>

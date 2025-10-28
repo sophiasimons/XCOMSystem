@@ -8,12 +8,15 @@ If --port is omitted the bridge will run in simulated mode and echo messages.
 """
 
 import base64
-from file_transfer import FileTransfer, create_chunk_validator
 import argparse
 import asyncio
 import json
 import logging
+import os
+from pathlib import Path
+from aiohttp import web
 from websockets import serve
+from file_transfer import FileTransfer, create_chunk_validator
 
 try:
     import serial_asyncio
@@ -33,13 +36,13 @@ class SerialRelay:
         self.file_transfer = FileTransfer()
 
     async def test_connection(self):
-        """Test if we can connect to the STM32 device."""
+        """Test if we can connect to the STM32 device and verify it's an STM32."""
         if not self.serial_port:
-            return False
+            return {"connected": False, "reason": "No USB device detected"}
         
         try:
             if serial_asyncio is None:
-                return False
+                return {"connected": False, "reason": "Serial communication not available"}
                 
             # Try to open the port
             loop = asyncio.get_running_loop()
@@ -48,13 +51,23 @@ class SerialRelay:
                 baudrate=self.baud
             )
             
+            # TODO: Add specific STM32 detection here if needed
+            # For now, we assume if we can open the port, it's our device
+            
             # If we got here, connection successful
             transport.close()
-            return True
+            return {
+                "connected": True,
+                "port": self.serial_port,
+                "baud": self.baud
+            }
             
         except Exception as e:
             LOG.error("Failed to connect to STM32: %s", e)
-            return False
+            return {
+                "connected": False,
+                "reason": f"Connection failed: {str(e)}"
+            }
 
     async def connect(self):
         if not self.serial_port:
@@ -120,11 +133,12 @@ async def ws_handler(websocket, path, relay: SerialRelay):
                 
                 if msg_type == "check_connection":
                     # Check if we can connect to the STM32
-                    is_connected = await relay.test_connection()
-                    await websocket.send(json.dumps({
+                    connection_status = await relay.test_connection()
+                    response = {
                         "type": "connection_status",
-                        "connected": is_connected
-                    }))
+                        **connection_status  # This unpacks all the status information
+                    }
+                    await websocket.send(json.dumps(response))
                 
                 elif msg_type == "file_upload":
                     # Handle file upload
@@ -178,11 +192,36 @@ async def ws_handler(websocket, path, relay: SerialRelay):
         LOG.info("WS client disconnected: %s", e)
 
 
+async def start_web_server(host, port):
+    app = web.Application()
+    # Serve files from the mounted web directory
+    web_dir = Path('/usr/src/app/web/app')
+    LOG.info("Looking for web files in: %s", web_dir)
+    if not web_dir.exists():
+        LOG.error("Web directory not found at %s", web_dir)
+        return
+        
+    async def index_handler(request):
+        return web.FileResponse(web_dir / 'index.html')
+        
+    # Serve static files
+    app.router.add_get('/', index_handler)
+    app.router.add_static('/', web_dir)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host, port)
+    await site.start()
+    LOG.info("Web UI server running at http://%s:%s", host, port)
+    return runner
+
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", help="Serial port device path (e.g. /dev/ttyUSB0)")
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--ws-port", type=int, default=8765)
+    parser.add_argument("--web-port", type=int, default=8000)
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -190,12 +229,18 @@ async def main():
     relay = SerialRelay(serial_port=args.port, baud=args.baud)
     await relay.connect()
 
+    # Start web server for UI
+    web_runner = await start_web_server(args.host, args.web_port)
+
     async def handler(ws, path):
         await ws_handler(ws, path, relay)
 
-    async with serve(handler, "127.0.0.1", args.ws_port):
-        LOG.info("WebSocket bridge listening on ws://127.0.0.1:%s", args.ws_port)
-        await asyncio.Future()  # run forever
+    async with serve(handler, args.host, args.ws_port):
+        LOG.info("WebSocket bridge listening on ws://%s:%s", args.host, args.ws_port)
+        try:
+            await asyncio.Future()  # run forever
+        finally:
+            await web_runner.cleanup()
 
 
 if __name__ == "__main__":

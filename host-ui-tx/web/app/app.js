@@ -6,10 +6,39 @@
   const statusModal = document.getElementById('statusModal');
   const modalMessage = document.getElementById('modalMessage');
   const connectionStatus = document.getElementById('connectionStatus');
+  const statusDot = document.querySelector('.status-dot');
+  const statusText = document.querySelector('.status-text');
 
   const WS_URL = 'ws://127.0.0.1:8765';
   let ws = null;
   let connectionTimeout = null;
+  let connectionCheckInterval = null;
+
+  // Update the connection indicator
+  function updateConnectionIndicator(isConnected, message) {
+    statusDot.className = 'status-dot ' + (isConnected ? 'connected' : 'disconnected');
+    statusText.textContent = message;
+  }
+
+  // Start periodic connection checking
+  function startConnectionMonitoring() {
+    // Clear any existing interval
+    if (connectionCheckInterval) {
+      clearInterval(connectionCheckInterval);
+    }
+
+    // Check connection status every 5 seconds
+    connectionCheckInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'check_connection' }));
+      } else {
+        updateConnectionIndicator(false, 'Disconnected');
+        connectToDevice().catch(() => {
+          updateConnectionIndicator(false, 'Connection failed');
+        });
+      }
+    }, 5000);
+  }
 
   // Show/hide the status modal
   function showModal(message, showSpinner = true) {
@@ -57,6 +86,8 @@
         clearTimeout(connectionTimeout);
         // Check STM32 connection once WebSocket is open
         ws.send(JSON.stringify({ type: 'check_connection' }));
+        // Start monitoring the connection
+        startConnectionMonitoring();
       };
 
       ws.onmessage = (event) => {
@@ -64,11 +95,15 @@
           const response = JSON.parse(event.data);
           if (response.type === 'connection_status') {
             if (response.connected) {
-              updateConnectionStatus('STM32 device connected', false);
+              const deviceInfo = `Connected (${response.port})`;
+              updateConnectionStatus(deviceInfo, false);
+              updateConnectionIndicator(true, deviceInfo);
               resolve();
             } else {
-              updateConnectionStatus('STM32 device not found', true);
-              reject('STM32 device not found');
+              const errorMsg = response.reason || 'Device not found';
+              updateConnectionStatus(errorMsg, true);
+              updateConnectionIndicator(false, errorMsg);
+              reject(errorMsg);
             }
           } else if (response.type === 'upload_success') {
             updateConnectionStatus('File sent to STM32', false);
@@ -83,7 +118,15 @@
 
       ws.onclose = () => {
         updateConnectionStatus('Connection lost', true);
+        updateConnectionIndicator(false, 'Connection lost');
         ws = null;
+        
+        // Try to reconnect after a brief delay
+        setTimeout(() => {
+          connectToDevice().catch(() => {
+            updateConnectionIndicator(false, 'Reconnection failed');
+          });
+        }, 3000);
       };
 
       ws.onerror = () => {
@@ -132,9 +175,22 @@
     sendDataBtn.disabled = false;
   });
 
+  // Show toast notification
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
+  }
+
   sendDataBtn.addEventListener('click', async () => {
     const file = fileInput.files[0];
-    if (!file) return;
+    if (!file) {
+      showToast('Please select a file first');
+      return;
+    }
 
     showModal('Connecting to device...');
 

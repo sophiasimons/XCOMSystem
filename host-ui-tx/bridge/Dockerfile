@@ -1,20 +1,21 @@
 FROM python:3.11-slim
-WORKDIR /app
+# Set working directory
+WORKDIR /usr/src/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the bridge script
-COPY bridge.py ./
-COPY start.sh ./
-RUN chmod +x start.sh
-
-# Create directory for web files
-RUN mkdir -p /app/web
-
-# Expose both web UI and WebSocket ports
+# Copy Python files
+COPY *.py ./
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD curl -f http://localhost:8000 || exit 1
+# Expose ports
 EXPOSE 8000 8765
-
-# Use environment variable for bridge arguments
-CMD sh -c 'python -m http.server 8000 --directory /app/web & python bridge.py $BRIDGE_ARGS'
+# Command to run the bridge application with proper host binding
+CMD ["python", "./bridge.py", "--ws-port", "8765", "--web-port", "8000", "--host", "0.0.0.0"]

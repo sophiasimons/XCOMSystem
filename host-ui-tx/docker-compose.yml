@@ -1,6 +1,7 @@
 
 services:
   xcom-ui:
+    image: xcom-ui
     build:
       context: ./bridge
       dockerfile: Dockerfile
@@ -8,7 +9,7 @@ services:
       - "8000:8000"  # Web UI
       - "8765:8765"  # WebSocket bridge
     volumes:
-      - ./web/app:/app/web  # Mount web files for easy development
+      - ./web/app:/usr/src/app/web/app  # Mount web app files for easy development
       - /dev:/dev           # Give access to USB devices
     environment:
       - PYTHONUNBUFFERED=1  # Show Python logs immediately
