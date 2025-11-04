@@ -11,9 +11,11 @@ ECE3906 Capstone project 2025-26
     - [Required Software](#required-software)
     - [Verifying Installation](#verifying-installation)
 - [Transmitting UI](#transmitting-UI)
-    - [TX Set-up](#tx-set-up)
-- [Section 3](#section-3)
-- [Section 4](#section-4)
+    - [TX Set-Up](#tx-set-up)
+    - [Transmitting Your Data](#transmitting-your-data)
+- [Receiving UI](#receiving-ui)
+    - [RX Set-Up](#rx-set-up)
+    - [Receiving Your Data](#receiving-your-data)
 
 # Introduction
 
@@ -107,13 +109,13 @@ docker ps
 
 ### TX Set-Up
 
-1. Cd into the host-ui folder: 
+1. Cd into the **host-ui-tx** folder: 
     ```bash
     cd host-ui-tx
     ```
-2. Run the `start_xcom.sh` script to begin building the transmitter:
+2. Run the `start_xcom_tx.sh` script to begin building the transmitter:
     ```bash
-    ./start_xcom.sh
+    ./start_xcom_tx.sh
     ```
     To stop:
     ```bash
@@ -131,6 +133,30 @@ docker ps
 
 
 
-## Section 3
+### RX Set-Up
+
+1. Cd into the **host-ui-rx** folder: 
+    ```bash
+    cd host-ui-rx
+    ```
+2. Run the `start_xcom_rx.sh` script to begin building the transmitter:
+    ```bash
+    ./start_xcom_rx.sh
+    ```
+    To stop:
+    ```bash
+    ./start_xcom_rx.sh stop
+    ```
+3. Open http://localhost:8000 in your browser to view
+
+    Stuff on how to select a file and send it yada yada
+
+### Receiving Your Data
+
+1. Ensure the FPGA is connected to the RX laptop:
+2. Choose a file:
+3. Send File:
+
+
 
 ## Section 4
