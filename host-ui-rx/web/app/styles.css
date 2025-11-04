@@ -1,0 +1,219 @@
+:root {
+  --scarlet: #FF2400;
+  --scarlet-light: #FF4D4D;
+  --gray-dark: #333333;
+  --gray: #666666;
+  --gray-light: #E5E5E5;
+  --bg: #F8F9FA;
+  --card: #FFFFFF;
+  --accent: var(--scarlet);
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  margin: 0;
+  background: var(--bg);
+  color: var(--gray-dark);
+  line-height: 1.5;
+}
+
+.connection-indicator {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--gray-light);
+  z-index: 100;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--gray);
+  transition: background-color 0.3s ease;
+}
+
+.status-dot.connected {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
+}
+
+.status-dot.disconnected {
+  background-color: var(--scarlet);
+  box-shadow: 0 0 0 2px rgba(255, 36, 0, 0.2);
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-dark);
+}
+
+header {
+  padding: 24px 32px;
+  background: linear-gradient(90deg, rgba(255, 36, 0, 0.05), transparent);
+  border-bottom: 1px solid var(--gray-light);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--scarlet);
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--gray);
+  font-size: 15px;
+}
+
+main {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.content-center {
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 20px;
+}
+
+h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-dark);
+  margin: 0 0 12px 0;
+}
+
+.instruction-text {
+  color: var(--gray);
+  font-size: 14px;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.data-section {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-top: 20px;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal.show {
+  display: flex;
+}
+
+.modal-content {
+  background: var(--card);
+  padding: 32px;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+  border: 1px solid var(--gray-light);
+}
+
+.modal-spinner {
+  margin: 20px auto;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--gray-light);
+  border-top: 3px solid var(--scarlet);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.toast {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--scarlet);
+  color: white;
+  padding: 16px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(255, 36, 0, 0.25);
+  z-index: 9999;
+}
+
+.toast.show {
+  display: block;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+.connection-status {
+  margin-bottom: 12px;
+  padding: 6px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.connection-status.success {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  font-weight: 500;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(82, 196, 26, 0.2);
+}
+
+.connection-status.error {
+  background: rgba(255, 36, 0, 0.1);
+  color: var(--scarlet);
+  font-weight: 500;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 36, 0, 0.2);
+}

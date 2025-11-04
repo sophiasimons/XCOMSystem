@@ -1,0 +1,18 @@
+services:
+  xcom-ui-rx:
+    image: xcom-ui-rx
+    build:
+      context: ./bridge
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"  # Web UI (different port from tx)
+      - "8766:8765"  # WebSocket bridge (different port from tx)
+    volumes:
+      - ./web/app:/usr/src/app/web/app  # Mount web app files for easy development
+      - /dev:/dev           # Give access to USB devices
+    environment:
+      - PYTHONUNBUFFERED=1  # Show Python logs immediately
+      - BRIDGE_ARGS=${BRIDGE_ARGS:-"--ws-port 8765"}  # Bridge arguments from start script
+    # Make sure container keeps running and restarts if it fails
+    restart: unless-stopped
+    privileged: true        # Needed for USB device access
