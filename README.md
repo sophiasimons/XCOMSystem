@@ -131,7 +131,7 @@ docker ps
 2. Choose a file:
 3. Send File:
 
-
+# Receiving UI
 
 ### RX Set-Up
 
