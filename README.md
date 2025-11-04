@@ -10,8 +10,8 @@ ECE3906 Capstone project 2025-26
     - [Cloning this Repository](#cloning-this-repository)
     - [Required Software](#required-software)
     - [Verifying Installation](#verifying-installation)
-- [Transmitting UI](#transmitting-software)
-    -[TX Set-up](#tx-set-up)
+- [Transmitting UI](#transmitting-UI)
+    - [TX Set-up](#tx-set-up)
 - [Section 3](#section-3)
 - [Section 4](#section-4)
 
