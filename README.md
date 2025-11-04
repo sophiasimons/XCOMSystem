@@ -5,19 +5,31 @@ ECE3906 Capstone project 2025-26
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [Software Prerequisites/Installation](#section-1)
+    - [Terms Used in this Documentation](#terms-used-in-this-documentation)
+- [Software Prerequisites/Set-Up](#section-1)
     - [Cloning this Repository](#cloning-this-repository)
     - [Required Software](#required-software)
     - [Verifying Installation](#verifying-installation)
-- [Transmitting Software UI Set-up](#transmitting-software-ui-set-up)
+- [Transmitting UI](#transmitting-software)
+    -[TX Set-up](#tx-set-up)
 - [Section 3](#section-3)
 - [Section 4](#section-4)
 
 # Introduction
 
-# Software Prerequisites/Installation
+### Terms Used in this Documentation:
 
-Before setting up the XCOM system, ensure you complete the following sections:
+| Term | Definition |
+|------|------------|
+|  RX    |   Receiving Side   |
+|  TX    |   Transmitting Side   |
+|  UI   |   User Interface (the web app in this case)   |
+|      |            |
+
+
+# Software Prerequisites/Set-Up
+
+Before setting up the XCOM system, ensure you complete the following sections **on BOTH TX and RX laptops**:
 
 ### Cloning this Repository
 
@@ -91,7 +103,9 @@ git --version
 docker ps
 ```
 
-## Transmitting Software UI Setup
+# Transmitting UI
+
+### TX Set-Up
 
 1. Cd into the host-ui folder: 
     ```bash
@@ -105,9 +119,15 @@ docker ps
     ```bash
     ./start_xcom_tx.sh stop
     ```
-4. Open http://localhost:8000 in your browser to view
+3. Open http://localhost:8000 in your browser to view
 
     Stuff on how to select a file and send it yada yada
+
+### Transmitting Your Data
+
+1. Ensure the STM32 Microcontroller is connected to the TX laptop:
+2. Choose a file:
+3. Send File:
 
 
 
