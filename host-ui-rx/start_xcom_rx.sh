@@ -13,7 +13,7 @@ echo "Starting XCOM RX System..."
 
 # Check if Docker is available and running
 if ! docker info >/dev/null 2>&1; then
-    echo "❌ Error: Docker is not available"
+    echo "Error: Docker is not available"
     echo "Please ensure Docker Desktop is installed and running"
     echo "Get Docker Desktop from: https://www.docker.com/products/docker-desktop"
     exit 1
@@ -36,7 +36,7 @@ fi
 # Build and start services
 echo "Building and starting services..."
 if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
-    echo "❌ Error: Failed to start services"
+    echo "Error: Failed to start services"
     docker compose logs --tail 10
     exit 1
 fi
