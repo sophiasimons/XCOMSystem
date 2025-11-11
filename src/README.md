@@ -1,5 +1,6 @@
 PLANNED SRC FILE STRUCTURE: 
 
+```bash
 XCOMSTM32/
 ├── src/
 │   ├── conversion/              # Shared code for both TX and RX
@@ -11,3 +12,5 @@ XCOMSTM32/
 │   └── rx/                  # Receiver-specific code
 │       ├── rx_main.c
 │       └── file_writer.c    # Write chunks to file
+
+```
