@@ -152,7 +152,7 @@ static int8_t CUSTOM_HID_Init_HS(void)
   /* USER CODE BEGIN 8 */
   USBD_LL_PrepareReceive(&hUsbDeviceHS, CUSTOM_HID_EPOUT_ADDR,
                          (uint8_t*)(((USBD_CUSTOM_HID_HandleTypeDef *)(hUsbDeviceHS.pClassData))->Report_buf),
-                         USBD_CUSTOM_HID_OUT_BUF_SIZE);
+                         USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
   return (USBD_OK);
   /* USER CODE END 8 */
 }
