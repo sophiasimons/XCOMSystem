@@ -133,7 +133,52 @@ bool test_tcp_connection(const char *ip_address, int port) {
 bool send_test_data(const char *ip_address, int port) {
     int sock;
     struct sockaddr_in server_addr;
+    FILE *file = NULL;
+    char *file_buffer = NULL;
+    long file_size = 0;
+    bool success = false;
     
+    // Open and read the test text file
+    const char *filename = "txtFile.txt";
+    file = fopen(filename, "rb");
+    if (!file) {
+        printf("  ✗ Failed to open %s\n", filename);
+        printf("    Make sure %s exists in the current directory\n", filename);
+        return false;
+    }
+    
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    if (file_size <= 0) {
+        printf("  ✗ File %s is empty or invalid\n", filename);
+        fclose(file);
+        return false;
+    }
+    
+    // Allocate buffer and read file
+    file_buffer = (char *)malloc(file_size);
+    if (!file_buffer) {
+        printf("  ✗ Memory allocation failed\n");
+        fclose(file);
+        return false;
+    }
+    
+    size_t bytes_read = fread(file_buffer, 1, file_size, file);
+    fclose(file);
+    file = NULL;
+    
+    if (bytes_read != file_size) {
+        printf("  ✗ Failed to read complete file\n");
+        free(file_buffer);
+        return false;
+    }
+    
+    printf("  Loaded %ld bytes from '%s'\n", file_size, filename);
+    
+    // Initialize socket
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);
@@ -141,6 +186,8 @@ bool send_test_data(const char *ip_address, int port) {
     
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
+        printf("  ✗ Failed to create socket\n");
+        free(file_buffer);
         return false;
     }
     
@@ -150,24 +197,40 @@ bool send_test_data(const char *ip_address, int port) {
     inet_pton(AF_INET, ip_address, &server_addr.sin_addr);
     
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        printf("  ✗ Connection failed\n");
 #ifndef _WIN32
         close(sock);
 #else
         closesocket(sock);
         WSACleanup();
 #endif
+        free(file_buffer);
         return false;
     }
     
-    // Send test file (small test data)
-    const char *test_data = "ETHERNET_TEST_DATA";
-    uint32_t test_size = strlen(test_data);
+    // Send file size first (4 bytes, little-endian)
+    uint32_t size_to_send = (uint32_t)file_size;
+    send(sock, (char*)&size_to_send, sizeof(size_to_send), 0);
     
-    // Send size first (4 bytes, little-endian)
-    send(sock, (char*)&test_size, sizeof(test_size), 0);
+    // Send file data
+    int sent = send(sock, file_buffer, file_size, 0);
     
-    // Send data
-    int sent = send(sock, test_data, test_size, 0);
+    if (sent == file_size) {
+        printf("  ✓ Sent %d bytes from '%s'\n", sent, filename);
+        // Print first 50 chars of file content
+        int preview_len = (file_size < 50) ? file_size : 50;
+        printf("  Content preview: \"");
+        for (int i = 0; i < preview_len; i++) {
+            if (file_buffer[i] == '\n') printf("\\n");
+            else if (file_buffer[i] == '\r') printf("\\r");
+            else printf("%c", file_buffer[i]);
+        }
+        if (file_size > 50) printf("...");
+        printf("\"\n");
+        success = true;
+    } else {
+        printf("  ✗ Failed to send complete file (sent %d/%ld bytes)\n", sent, file_size);
+    }
     
 #ifndef _WIN32
     close(sock);
@@ -176,12 +239,8 @@ bool send_test_data(const char *ip_address, int port) {
     WSACleanup();
 #endif
     
-    if (sent == test_size) {
-        printf("  ✓ Sent %d bytes: \"%s\"\n", sent, test_data);
-        return true;
-    }
-    
-    return false;
+    free(file_buffer);
+    return success;
 }
 
 /**

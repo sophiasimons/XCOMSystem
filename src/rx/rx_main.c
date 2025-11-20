@@ -8,6 +8,10 @@
  * Architecture:
  * TX STM32 → [X-ray circuit] → THIS STM32 → [Ethernet] → RX Laptop
  */
+ //RX IP 192.168.000.010
+ //NM 255.255.255.000
+ //GW 192.168.000.001
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +25,7 @@
 //#include "lwip/sockets.h"
 
 // RX Laptop configuration
-#define RX_LAPTOP_IP "192.168.1.200"  // RX laptop IP address
+#define RX_LAPTOP_IP "192.168.000.010"  // RX laptop IP address
 #define RX_LAPTOP_PORT 5000
 
 // Global buffer for X-ray circuit to write received data
