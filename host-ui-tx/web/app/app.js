@@ -27,17 +27,17 @@
       clearInterval(connectionCheckInterval);
     }
 
-    // Check connection status every 5 seconds
+    // Check connection status every 2 seconds for live updates
     connectionCheckInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'check_connection' }));
       } else {
-        updateConnectionIndicator(false, 'Disconnected');
+        updateConnectionIndicator(false, 'Disconnected from bridge');
         connectToDevice().catch(() => {
-          updateConnectionIndicator(false, 'Connection failed');
+          updateConnectionIndicator(false, 'Bridge connection failed');
         });
       }
-    }, 5000);
+    }, 2000); // Changed from 5000ms to 2000ms for faster updates
   }
 
   // Show/hide the status modal
@@ -95,21 +95,22 @@
           const response = JSON.parse(event.data);
           if (response.type === 'connection_status') {
             if (response.connected) {
-              const deviceInfo = `Connected (${response.port})`;
+              const deviceInfo = `STM32 Connected (${response.port})`;
               updateConnectionStatus(deviceInfo, false);
               updateConnectionIndicator(true, deviceInfo);
               resolve();
             } else {
-              const errorMsg = response.reason || 'Device not found';
+              const errorMsg = response.reason || 'STM32 not detected';
               updateConnectionStatus(errorMsg, true);
               updateConnectionIndicator(false, errorMsg);
-              reject(errorMsg);
+              // Don't reject - keep checking in the background
             }
           } else if (response.type === 'upload_success') {
             updateConnectionStatus('File sent to STM32', false);
+            showToast('File sent successfully!');
           } else if (response.type === 'error') {
             updateConnectionStatus(response.message, true);
-            reject(response.message);
+            showToast('Error: ' + response.message);
           }
         } catch (e) {
           console.error('Failed to parse message:', e);

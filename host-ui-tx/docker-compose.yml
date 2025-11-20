@@ -10,10 +10,10 @@ services:
       - "8765:8765"  # WebSocket bridge
     volumes:
       - ./web/app:/usr/src/app/web/app  # Mount web app files for easy development
-      - /dev:/dev           # Give access to USB devices
     environment:
       - PYTHONUNBUFFERED=1  # Show Python logs immediately
-      - BRIDGE_ARGS=${BRIDGE_ARGS:-"--ws-port 8765"}  # Bridge arguments from start script
+      - STM32_IP=${STM32_IP:-192.168.1.100}  # STM32 IP address (configurable)
+      - STM32_PORT=${STM32_PORT:-5000}       # STM32 TCP port (configurable)
     # Make sure container keeps running and restarts if it fails
     restart: unless-stopped
-    privileged: true        # Needed for USB device access
+    network_mode: "host"    # Use host network to access STM32 on local network
