@@ -8,9 +8,9 @@ The system has been simplified to use **Ethernet instead of USB/UART**. This eli
 
 ```
 ┌─────────────┐      WebSocket      ┌──────────┐      Ethernet TCP      ┌────────────┐
-│   Browser   │ ─────────────────> │ bridge.py│ ───────────────────> │ STM32 RX   │
-│     UI      │                      │ (laptop) │                       │ (receiver) │
-└─────────────┘                      └──────────┘                       └────────────┘
+│   Browser   │ ─────────────────>  │ bridge.py│ ───────────────>       │ STM32 TX   │ ─────────────> Circuit
+│     UI      │                     │ (laptop) │                        │            │
+└─────────────┘                     └──────────┘                        └────────────┘
 ```
 
 ### Key Components:
