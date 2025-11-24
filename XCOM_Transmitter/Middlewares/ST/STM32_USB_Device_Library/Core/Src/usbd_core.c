@@ -586,16 +586,6 @@ USBD_StatusTypeDef USBD_LL_SetupStage(USBD_HandleTypeDef *pdev, uint8_t *psetup)
 USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
                                         uint8_t epnum, uint8_t *pdata)
 {
-  /* USER CODE BEGIN 0 */
-  /* Check if this is our BULK OUT endpoint */
-  if (epnum == CUSTOM_HID_EPOUT_ADDR) // CUSTOM_HID_EPOUT_ADDR is defined in usbd_custom_hid.h
-  {
-    /* Call the class-specific data handler */
-    USBD_CUSTOM_HID_DataOut(pdev, epnum);
-    return HAL_OK;
-  }
-  /* USER CODE END 0 */
-  
   USBD_EndpointTypeDef *pep;
   USBD_StatusTypeDef ret = USBD_OK;
   uint8_t idx;

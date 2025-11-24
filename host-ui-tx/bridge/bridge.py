@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""XCOM Bridge: WebSocket server that handles file transfers to STM32.
+"""XCOM Bridge: WebSocket server that handles file transfers to STM32 via Ethernet.
 
 Usage:
-  python bridge.py --port /dev/tty.usbserial-XXXX --baud 115200 --ws-port 8765
+  python bridge.py --stm32-ip 192.168.1.100 --stm32-port 5000 --ws-port 8765
 
-If --port is omitted the bridge will run in simulated mode and echo messages.
+If --stm32-ip is omitted the bridge will run in simulated mode and echo messages.
 """
 
 import base64
@@ -12,117 +12,108 @@ import argparse
 import asyncio
 import json
 import logging
-import os
+import socket
 from pathlib import Path
 from aiohttp import web
 from websockets import serve
-from file_transfer import FileTransfer, create_chunk_validator
-
-try:
-    import serial_asyncio
-except Exception:
-    serial_asyncio = None
 
 LOG = logging.getLogger("bridge")
 
 
-class SerialRelay:
-    def __init__(self, serial_port=None, baud=115200):
-        self.serial_port = serial_port
-        self.baud = baud
-        self.transport = None
-        self.protocol = None
+class EthernetRelay:
+    def __init__(self, stm32_ip=None, stm32_port=5000):
+        self.stm32_ip = stm32_ip
+        self.stm32_port = stm32_port
         self._is_connected = False
-        self.file_transfer = FileTransfer()
 
     async def test_connection(self):
-        """Test if we can connect to the STM32 device and verify it's an STM32."""
-        if not self.serial_port:
-            return {"connected": False, "reason": "No USB device detected"}
+        """Test if we can connect to the STM32 via Ethernet."""
+        if not self.stm32_ip:
+            return {"connected": False, "reason": "No STM32 IP address configured"}
         
         try:
-            if serial_asyncio is None:
-                return {"connected": False, "reason": "Serial communication not available"}
-                
-            # Try to open the port
-            loop = asyncio.get_running_loop()
-            transport, protocol = await serial_asyncio.open_serial_connection(
-                url=self.serial_port, 
-                baudrate=self.baud
+            # Try to connect with a short timeout
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(self.stm32_ip, self.stm32_port),
+                timeout=2.0
             )
+            writer.close()
+            await writer.wait_closed()
             
-            # TODO: Add specific STM32 detection here if needed
-            # For now, we assume if we can open the port, it's our device
-            
-            # If we got here, connection successful
-            transport.close()
             return {
                 "connected": True,
-                "port": self.serial_port,
-                "baud": self.baud
+                "ip": self.stm32_ip,
+                "port": self.stm32_port
             }
             
-        except Exception as e:
-            LOG.error("Failed to connect to STM32: %s", e)
+        except asyncio.TimeoutError:
+            LOG.debug("Connection timeout to %s:%s", self.stm32_ip, self.stm32_port)
             return {
                 "connected": False,
-                "reason": f"Connection failed: {str(e)}"
+                "reason": f"Connection timeout to {self.stm32_ip}:{self.stm32_port}"
+            }
+        except Exception as e:
+            LOG.debug("Failed to connect to STM32: %s", e)
+            return {
+                "connected": False,
+                "reason": f"Cannot connect: {str(e)}"
             }
 
     async def connect(self):
-        if not self.serial_port:
-            LOG.info("Running in simulated mode (no serial port)")
+        if not self.stm32_ip:
+            LOG.info("Running in simulated mode (no STM32 IP configured)")
             return
-        
-        if serial_asyncio is None:
-            raise RuntimeError("serial_asyncio (pyserial-asyncio) not available")
             
-        loop = asyncio.get_running_loop()
         try:
-            self.transport, self.protocol = await serial_asyncio.open_serial_connection(
-                url=self.serial_port, 
-                baudrate=self.baud
-            )
-            self._is_connected = True
-            LOG.info("Connected to STM32 at %s @ %s", self.serial_port, self.baud)
+            connection_status = await self.test_connection()
+            self._is_connected = connection_status.get("connected", False)
+            if self._is_connected:
+                LOG.info("STM32 reachable at %s:%s", self.stm32_ip, self.stm32_port)
+            else:
+                LOG.warning("STM32 not reachable at %s:%s", self.stm32_ip, self.stm32_port)
         except Exception as e:
             self._is_connected = False
             LOG.error("Failed to connect to STM32: %s", e)
-            raise
-
-    async def write(self, data: bytes):
-        if self.transport:
-            # Add validation bytes
-            validated_data = data + create_chunk_validator(data)
-            self.transport.write(validated_data)
-        else:
-            LOG.debug("Simulated write: %r", data)
 
     async def send_file(self, file_data: bytes, filename: str):
-        """Send a file to the STM32 in chunks"""
-        # Prepare the file for transfer
-        self.file_transfer.prepare_file(file_data, filename)
-        
-        # Send header first
-        header = self.file_transfer.get_header()
-        await self.write(header)
-        await asyncio.sleep(0.1)  # Give STM32 time to process
-
-        # Send chunks
-        while True:
-            chunk_data = self.file_transfer.get_next_chunk()
-            if chunk_data is None:
-                break
-                
-            chunk, chunk_num = chunk_data
-            await self.write(chunk)
-            LOG.info(f"Sent chunk {chunk_num}")
-            await asyncio.sleep(0.05)  # Rate limiting
+        """Send file to STM32 over Ethernet TCP socket"""
+        if not self.stm32_ip:
+            LOG.info(f"Simulated send: {filename} ({len(file_data)} bytes)")
+            return
             
-        LOG.info(f"File transfer complete: {filename}")
+        try:
+            LOG.info(f"Sending {filename} ({len(file_data)} bytes) to {self.stm32_ip}:{self.stm32_port}...")
+            
+            # Open TCP connection to STM32
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(self.stm32_ip, self.stm32_port),
+                timeout=5.0
+            )
+            
+            # Send file size first (4 bytes, little-endian)
+            file_size = len(file_data)
+            writer.write(file_size.to_bytes(4, byteorder='little'))
+            await writer.drain()
+            
+            # Send entire file
+            writer.write(file_data)
+            await writer.drain()
+            
+            # Close connection
+            writer.close()
+            await writer.wait_closed()
+            
+            LOG.info(f"File transfer complete: {filename}")
+                
+        except asyncio.TimeoutError:
+            LOG.error(f"Timeout sending file to {self.stm32_ip}:{self.stm32_port}")
+            raise RuntimeError(f"Connection timeout")
+        except Exception as e:
+            LOG.error(f"Failed to send file: {e}")
+            raise
 
 
-async def ws_handler(websocket, path, relay: SerialRelay):
+async def ws_handler(websocket, path, relay: EthernetRelay):
     LOG.info("Client connected: %s", websocket.remote_address)
     try:
         async for msg in websocket:
@@ -132,7 +123,7 @@ async def ws_handler(websocket, path, relay: SerialRelay):
                 msg_type = obj.get("type", "")
                 
                 if msg_type == "check_connection":
-                    # Check if we can connect to the STM32
+                    # Check if we can connect to the STM32 via Ethernet
                     connection_status = await relay.test_connection()
                     response = {
                         "type": "connection_status",
@@ -142,40 +133,43 @@ async def ws_handler(websocket, path, relay: SerialRelay):
                 
                 elif msg_type == "file_upload":
                     # Handle file upload
-                    if not relay._is_connected and not await relay.test_connection():
-                        await websocket.send(json.dumps({
-                            "type": "error",
-                            "message": "STM32 device not connected"
-                        }))
-                        continue
+                    if not relay._is_connected and relay.stm32_ip:
+                        connection_status = await relay.test_connection()
+                        if not connection_status.get("connected"):
+                            await websocket.send(json.dumps({
+                                "type": "error",
+                                "message": "STM32 device not reachable via Ethernet"
+                            }))
+                            continue
 
-                    filename = obj.get("filename", "")
+                    filename = obj.get("filename", "file.bin")
                     size = obj.get("size", 0)
                     data = obj.get("data", "")
                     
                     try:
-                        # Convert base64 data to bytes and send to STM32
+                        # Convert base64 data to bytes
                         if isinstance(data, str):
-                            import base64
-                            data = base64.b64decode(data.split(',')[1])
-                        await relay.write(data)
+                            # Remove data URL prefix if present
+                            if ',' in data:
+                                data = data.split(',')[1]
+                            file_bytes = base64.b64decode(data)
+                        else:
+                            file_bytes = data
+                        
+                        # Send file directly via Ethernet
+                        await relay.send_file(file_bytes, filename)
+                        
                         await websocket.send(json.dumps({
                             "type": "upload_success",
                             "filename": filename,
-                            "size": len(data)
+                            "size": len(file_bytes)
                         }))
                     except Exception as e:
+                        LOG.error(f"File upload failed: {e}")
                         await websocket.send(json.dumps({
                             "type": "error",
                             "message": f"Failed to send file: {str(e)}"
                         }))
-                
-                elif msg_type == "raw":
-                    data = obj.get("data", "")
-                    if isinstance(data, str):
-                        data = data.encode()
-                    await relay.write(data)
-                    await websocket.send(json.dumps({"type":"ack","len":len(data)}))
                 
                 else:
                     await websocket.send(json.dumps({
@@ -217,8 +211,8 @@ async def start_web_server(host, port):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", help="Serial port device path (e.g. /dev/ttyUSB0)")
-    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--stm32-ip", help="STM32 IP address (e.g. 192.168.1.100)")
+    parser.add_argument("--stm32-port", type=int, default=5000, help="STM32 TCP port (default: 5000)")
     parser.add_argument("--ws-port", type=int, default=8765)
     parser.add_argument("--web-port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
@@ -226,7 +220,7 @@ async def main():
 
     logging.basicConfig(level=logging.INFO)
 
-    relay = SerialRelay(serial_port=args.port, baud=args.baud)
+    relay = EthernetRelay(stm32_ip=args.stm32_ip, stm32_port=args.stm32_port)
     await relay.connect()
 
     # Start web server for UI
