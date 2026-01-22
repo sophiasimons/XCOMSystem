@@ -23,7 +23,6 @@
 - **No chunking needed** - TCP handles flow control
 
 ### Phase 2: STM32 TX → X-ray Circuit (Your Custom Protocol)
-- **File**: `src/tx/tx_main.c`
 - **What it does**:
   - Receives file from bridge.py via Ethernet
   - Stores in global buffer `g_file_buffer`
@@ -37,7 +36,6 @@
 - **X-ray circuit responsibility**: Read bytes and modulate into X-ray signal
 
 ### Phase 3: X-ray Circuit → STM32 RX (Your Custom Protocol)
-- **File**: `src/rx/rx_main.c`
 - **What it expects**:
   - X-ray circuit writes received bytes to global buffer
   - X-ray circuit sets completion flag
@@ -50,12 +48,12 @@
 - **X-ray circuit responsibility**: Demodulate X-ray signal and write bytes
 
 ### Phase 4: STM32 RX → RX Laptop (Ethernet)
-- **File**: `host-ui-rx/bridge/bridge_new.py`
+- **File**: `host-ui-rx/bridge/bridge.py`
 - **Protocol**: TCP/IP (Ethernet)
-- **Direction**: STM32 initiates connection to laptop
+- **Direction**: STM32 RX connects to laptop (STM32 is TCP client)
 - **Connection**:
-  - RX Laptop listens on port `5000`
-  - STM32 RX connects to `192.168.1.200:5000` (example)
+  - RX Laptop listens on port `5000` (TCP server)
+  - STM32 RX connects to RX Laptop IP address
 - **No chunking needed** - TCP handles flow control
 
 ## File Responsibilities
@@ -64,14 +62,16 @@
 
 **`host-ui-tx/bridge/bridge.py`** (TX Laptop):
 - ✅ Receives file from web UI via WebSocket
-- ✅ Sends file to STM32 TX via Ethernet TCP
-- ✅ No modifications needed from Ethernet update
+- ✅ Connects to STM32 TX via Ethernet TCP (acts as TCP client)
+- ✅ Sends file size (4 bytes) + file data
+- ✅ Serves web UI on port 8000, WebSocket on port 8765
 
-**`src/tx/tx_main.c`** (STM32 TX):
+**`src/tx/tx_main.c`** (STM32 TX - Reference Implementation):
 - ✅ Runs TCP server on port 5000
-- ✅ Receives file from TX laptop
+- ✅ Receives file size (4 bytes) + file data from TX laptop
 - ✅ Stores in `g_file_buffer` for X-ray circuit
 - ✅ Provides API for X-ray circuit to access data
+- 📝 **Note**: Copy this code into your STM32CubeIDE project (e.g., `XCOM_Transmitter/`)
 
 ### X-Ray Circuit (Your Separate Code)
 
@@ -128,17 +128,19 @@ void xray_receive_file(void) {
 
 ### RX Side
 
-**`src/rx/rx_main.c`** (STM32 RX):
+**`src/rx/rx_main.c`** (STM32 RX - Reference Implementation):
 - ✅ Waits for `g_rx_complete` flag from X-ray circuit
-- ✅ Connects to RX laptop via Ethernet TCP
-- ✅ Sends complete file to RX laptop
+- ✅ Connects to RX laptop via Ethernet TCP (acts as TCP client)
+- ✅ Sends file size (4 bytes) + file data to RX laptop
 - ✅ Provides API for X-ray circuit to provide data
+- 📝 **Note**: Copy this code into your STM32CubeIDE project (e.g., `XCOM Receiver/`)
 
-**`host-ui-rx/bridge/bridge_new.py`** (RX Laptop):
-- ✅ Runs TCP server on port 5000
-- ✅ Receives file from STM32 RX
-- ✅ Saves to disk: `received_files/received_TIMESTAMP.bin`
-- ✅ Sends to web UI via WebSocket
+**`host-ui-rx/bridge/bridge.py`** (RX Laptop):
+- ✅ Runs TCP server on port 5000 (listens for STM32 RX)
+- ✅ Receives file size (4 bytes) + file data from STM32 RX
+- ✅ Saves to disk: `received_files/received_YYYYMMDD_HHMMSS.bin`
+- ✅ Notifies web UI via WebSocket
+- ✅ Serves web UI on port 8001, WebSocket on port 8766
 
 ## Network Configuration
 
@@ -160,16 +162,23 @@ RX Laptop: 192.168.1.200 (listening on port 5000)
 STM32 RX:  192.168.1.201
 ```
 
-## Do You Need byte_converter.c?
+## Unused Files (Legacy/Optional)
 
-### For Ethernet Parts: **NO**
-- TCP handles all chunking/reassembly automatically
-- No manual buffer management needed
+### `file_transfer.py` (Both TX and RX bridges)
+- ❌ **NOT NEEDED** - Was for chunking in USB/UART system
+- Ethernet uses simple file size + data protocol
+- TCP handles flow control automatically
+- Can be safely deleted
 
-### For X-Ray Circuit: **MAYBE**
-- If X-ray protocol needs chunking: Use `byte_converter.c`
-- If X-ray can handle arbitrary file sizes: Don't need it
-- **Your decision** based on X-ray circuit capabilities
+### `byte_converter.c` 
+- ❌ **NOT NEEDED for Ethernet** - TCP handles everything
+- ⚠️ **MAYBE for X-ray circuit** - If your X-ray protocol needs chunking
+- Your decision based on X-ray circuit capabilities
+
+### `bridge_usb.py` (RX side)
+- ❌ **NOT NEEDED** - Old USB/UART implementation
+- Replaced by Ethernet in `bridge.py`
+- Can be safely deleted
 
 ## Starting the System
 
@@ -198,37 +207,78 @@ python bridge.py --stm32-ip 192.168.1.100 --stm32-port 5000
 ### 5. RX Side
 ```bash
 cd host-ui-rx/bridge
-python bridge_new.py --listen-port 5000
+python bridge.py --listen-port 5000 --ws-port 8766 --web-port 8001
 # Opens web UI at http://127.0.0.1:8001
+# Listens for STM32 RX connections on port 5000
 ```
 
 ## File Summary
 
-### ✅ Files You Need (Updated for X-ray System)
-- `host-ui-tx/bridge/bridge.py` - TX laptop sender
-- `src/tx/tx_main.c` - STM32 TX receiver (from Ethernet) + X-ray interface
-- `src/rx/rx_main.c` - STM32 RX sender (to Ethernet) + X-ray interface
-- `host-ui-rx/bridge/bridge_new.py` - RX laptop receiver
+### ✅ Core Files You Need
+**TX Laptop:**
+- `host-ui-tx/bridge/bridge.py` - Sends files to STM32 TX via Ethernet
+- `host-ui-tx/web/app/` - Web UI for file uploads
+
+**RX Laptop:**
+- `host-ui-rx/bridge/bridge.py` - Receives files from STM32 RX via Ethernet  
+- `host-ui-rx/web/app/` - Web UI for viewing received files
+
+**STM32 Reference Code:**
+- `src/tx/tx_main.c` - Reference implementation for STM32 TX (copy to your STM32CubeIDE project)
+- `src/rx/rx_main.c` - Reference implementation for STM32 RX (copy to your STM32CubeIDE project)
+
+**Testing:**
+- `test/test_connection.c` - Tests TX STM32 Ethernet connection
+- `test/test_receive.c` - Tests RX STM32 Ethernet connection
+- `test/txtFile.txt` - Sample test file
 
 ### ⚠️ Files for X-Ray Circuit (Your Responsibility)
-- X-ray transmitter code (reads from STM32 TX)
-- X-ray receiver code (writes to STM32 RX)
+- X-ray transmitter code (reads from `g_file_buffer` on STM32 TX)
+- X-ray receiver code (writes to `g_rx_buffer` on STM32 RX)
 - May optionally use `byte_converter.c` for chunking
 
-### ❌ Files You Don't Need
-- `src/tx/tx_main.c` (old version that sent via Ethernet - deleted)
-- `test/test_connection.c` (USB/serial test - not using USB anymore)
-- `src/rx/rx_ethernet.c` (old version - replaced by rx_main.c)
+### ❌ Files You Don't Need (Can Delete)
+- `host-ui-tx/bridge/file_transfer.py` - Old chunking code for USB/UART
+- `host-ui-rx/bridge/file_transfer.py` - Old chunking code for USB/UART
+- `host-ui-rx/bridge/bridge_usb.py` - Old USB/UART implementation
+- Any `byte_converter` files (unless needed for X-ray circuit)
 
-## Testing End-to-End
+## Testing the System
 
-1. **Upload file** on TX laptop web UI
+### Unit Tests (Before X-ray circuit integration)
+
+**Test TX STM32 Connection:**
+```bash
+cd test
+gcc test_connection.c -o test_connection
+./test_connection 192.168.1.100 5000
+```
+This verifies:
+- ✓ STM32 TX is reachable via Ethernet
+- ✓ TCP server is running on port 5000
+- ✓ STM32 can receive files
+
+**Test RX STM32 Connection:**
+```bash
+cd test
+gcc test_receive.c -o test_receive
+./test_receive 192.168.1.101 5000
+```
+This verifies:
+- ✓ STM32 RX is reachable via Ethernet
+- ✓ STM32 can connect and send files
+- ✓ Files are received and saved correctly
+
+### End-to-End Test (With X-ray circuit)
+
+1. **Upload file** on TX laptop web UI (http://127.0.0.1:8000)
 2. **TX bridge.py** sends to STM32 TX via Ethernet ✓
 3. **STM32 TX** stores in `g_file_buffer` ✓
-4. **X-ray TX circuit** reads buffer and transmits
+4. **X-ray TX circuit** reads buffer and transmits via X-ray
 5. **X-ray RX circuit** receives and writes to `g_rx_buffer`
 6. **STM32 RX** sends `g_rx_buffer` to RX laptop ✓
-7. **RX bridge.py** receives and displays in web UI ✓
+7. **RX bridge.py** receives and saves to `received_files/` ✓
+8. **View file** on RX laptop web UI (http://127.0.0.1:8001)
 
 ## Next Steps
 
@@ -237,12 +287,4 @@ python bridge_new.py --listen-port 5000
 3. Uncomment `#define HAL_ETH_MODULE_ENABLED` in both tx_main.c and rx_main.c
 4. Flash STM32s with updated code
 5. Develop X-ray circuit communication layer
-6. Test end-to-end!
-
-## Questions?
-
-- **TX/RX bridges**: Handled by your code (Ethernet) ✓
-- **X-ray communication**: Handled by separate circuit code (your responsibility)
-- **Interface**: Global variables provide clean handoff between Ethernet and X-ray parts
-
-Good luck with your X-ray communication prototype! 🚀
+6. Test end-to-end

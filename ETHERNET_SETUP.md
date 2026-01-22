@@ -7,8 +7,8 @@ The system has been simplified to use **Ethernet instead of USB/UART**. This eli
 ## Architecture
 
 ```
-┌─────────────┐      WebSocket      ┌──────────┐      Ethernet TCP      ┌────────────┐
-│   Browser   │ ─────────────────>  │ bridge.py│ ───────────────>       │ STM32 TX   │ ─────────────> Circuit
+┌─────────────┐        WebSocket    ┌──────────┐      Ethernet TCP      ┌────────────┐
+│   Browser   │         ─────────>  │ bridge.py│ ───────────────>       │ STM32 TX   │ ─────────────> Circuit
 │     UI      │                     │ (laptop) │                        │            │
 └─────────────┘                     └──────────┘                        └────────────┘
 ```
@@ -18,21 +18,21 @@ The system has been simplified to use **Ethernet instead of USB/UART**. This eli
 1. **Browser UI** (`host-ui-tx/web/app/`)
    - Upload files via web interface
    - Monitor connection status
-   - Same as before - no changes needed!
 
 2. **Bridge.py** (`host-ui-tx/bridge/bridge.py`)
    - WebSocket server for UI communication
    - **NEW**: Uses TCP sockets to send files to STM32
-   - No more serial port scanning!
+   - No more serial port scanning
 
-3. **STM32 Receiver** (`src/rx/rx_ethernet.c`)
+3. **STM32 Receiver** (`src/rx/rx_main.c`)
    - Listens on TCP port 5000
    - Receives entire file in one connection
    - No chunking needed - unlimited file size
 
-## Setup Instructions
+## Setup Instructions (testing)
 
 ### 1. Configure STM32 Ethernet
+
 
 In STM32CubeIDE:
 1. Enable Ethernet in `.ioc` file:
@@ -45,11 +45,12 @@ In STM32CubeIDE:
    - Enable LwIP
    - Configure IP address in LWIP settings
 
+
 3. Generate code
 
 ### 2. Update STM32 Receiver Code
 
-1. Copy `src/rx/rx_ethernet.c` to your STM32 project
+1. Copy `src/rx/rx_main.c` to your STM32 project
 2. Uncomment the HAL defines at the top:
    ```c
    #define HAL_ETH_MODULE_ENABLED
@@ -150,18 +151,10 @@ INFO:bridge:Sending myfile.txt (1024 bytes) to 192.168.1.100:5000...
 INFO:bridge:File transfer complete: myfile.txt
 ```
 
-## Files Modified
+## Old Files
 
-- ✅ `src/tx/tx_main.c` - No longer needed (bridge sends directly)
-- ✅ `host-ui-tx/bridge/bridge.py` - Now uses TCP sockets instead of serial
-- ✅ `src/rx/rx_ethernet.c` - New Ethernet receiver (replaces byte_converter)
-- ✅ `host-ui-tx/web/app/` - No changes needed!
-
-## Old Files (No Longer Needed)
-
-These are kept for reference but not used with Ethernet:
+These are kept for reference but not used with Ethernet, will be removed once Ethernet finalized as connection method:
 - `src/conversion/byte_converter.c` - Chunking not needed anymore
 - `test/test_connection.c` - USB connection test
 - `test/test_byte_converter.c` - Chunking tests
 
-The new system is much simpler! 🎉
