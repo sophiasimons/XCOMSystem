@@ -13,11 +13,20 @@ echo "Starting XCOM RX System..."
 
 # Check if Docker is available and running
 if ! docker info >/dev/null 2>&1; then
-    echo "Error: Docker is not available"
-    echo "Please ensure Docker Desktop is installed and running"
-    echo "Get Docker Desktop from: https://www.docker.com/products/docker-desktop"
+    echo ""
+    echo "❌ Docker is not running"
+    echo ""
+    echo "To start Docker:"
+    echo "  macOS:   Open Docker Desktop from Applications"
+    echo "  Linux:   sudo systemctl start docker"
+    echo "  Windows: Start Docker Desktop from Start Menu"
+    echo ""
+    echo "Then run this script again: ./start_xcom_rx.sh"
+    echo ""
     exit 1
 fi
+
+echo "✓ Docker is running"
 
 # Clean up any existing containers
 echo "Cleaning up existing containers..."

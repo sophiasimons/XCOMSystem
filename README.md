@@ -114,7 +114,17 @@ docker ps
     ```bash
     cd host-ui-tx
     ```
-2. Run the `start_xcom_tx.sh` script to begin building the transmitter:
+2. Start Docker based on your OS:
+
+    **MacOS:** Open the app on your laptop, searching in Applications for "Docker"
+   
+    **Windows:** Start Docker Desktop from the Start Menu
+
+    **Linux:** Run this command in your terminal:
+    ```bash   
+    sudo systemctl start docker
+    ```
+3. Run the `start_xcom_tx.sh` script to begin building the transmitter:
     ```bash
     ./start_xcom_tx.sh
     ```
@@ -122,7 +132,9 @@ docker ps
     ```bash
     ./start_xcom_tx.sh stop
     ```
-3. Open http://localhost:8000 in your browser to view
+    NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time. 
+
+4. Open http://localhost:8000 in your browser to view
 
     Stuff on how to select a file and send it yada yada
 
@@ -140,7 +152,18 @@ docker ps
     ```bash
     cd host-ui-rx
     ```
-2. Run the `start_xcom_rx.sh` script to begin building the transmitter:
+
+2. Start Docker based on your OS:
+
+    **MacOS:** Open the app on your laptop, searching in Applications for "Docker"
+   
+    **Windows:** Start Docker Desktop from the Start Menu
+
+    **Linux:** Run this command in your terminal:
+    ```bash   
+    sudo systemctl start docker
+    ```
+3. Run the `start_xcom_rx.sh` script to begin building the transmitter:
     ```bash
     ./start_xcom_rx.sh
     ```
@@ -148,7 +171,9 @@ docker ps
     ```bash
     ./start_xcom_rx.sh stop
     ```
-3. Open http://localhost:8000 in your browser to view
+    NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time. 
+    
+4. Open http://localhost:8000 in your browser to view
 
     Stuff on how to select a file and send it yada yada
 
