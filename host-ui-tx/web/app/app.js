@@ -5,11 +5,10 @@
   const sendDataBtn = document.getElementById('sendDataBtn');
   const statusModal = document.getElementById('statusModal');
   const modalMessage = document.getElementById('modalMessage');
-  const connectionStatus = document.getElementById('connectionStatus');
   const statusDot = document.querySelector('.status-dot');
   const statusText = document.querySelector('.status-text');
 
-  const WS_URL = 'ws://127.0.0.1:8765';
+  const WS_URL = 'ws://127.0.0.1:8765'; // This is how we are connected to bridge.py
   let ws = null;
   let connectionTimeout = null;
   let connectionCheckInterval = null;
@@ -52,10 +51,9 @@
     statusModal.classList.remove('show');
   }
 
-  // Update the connection status display
+  // Update the connection status display (removed - now only using top indicator)
   function updateConnectionStatus(status, isError = false) {
-    connectionStatus.textContent = status;
-    connectionStatus.className = 'connection-status ' + (isError ? 'error' : 'success');
+    // No-op: Center status removed, using only top-right indicator
   }
 
   // Connect to WebSocket and check STM32 connection
@@ -83,6 +81,7 @@
       }, 5000);
 
       ws.onopen = () => {
+        console.log('WebSocket connected successfully');
         clearTimeout(connectionTimeout);
         // Check STM32 connection once WebSocket is open
         ws.send(JSON.stringify({ type: 'check_connection' }));
@@ -108,9 +107,16 @@
           } else if (response.type === 'upload_success') {
             updateConnectionStatus('File sent to STM32', false);
             showToast('File sent successfully!');
+            // Reset the file input
+            fileInput.value = '';
+            fileInfo.textContent = '';
+            sendDataBtn.disabled = true;
+            showModal('File sent successfully!', false);
+            setTimeout(hideModal, 2000);
           } else if (response.type === 'error') {
             updateConnectionStatus(response.message, true);
             showToast('Error: ' + response.message);
+            hideModal();
           }
         } catch (e) {
           console.error('Failed to parse message:', e);
@@ -162,10 +168,10 @@
       return;
     }
 
-    // File size validation (10MB limit)
-    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    // File size validation (1000MB limit)
+    const maxSize = 1000 * 1024 * 1024; // 1000MB in bytes, 1 GB
     if (file.size > maxSize) {
-      fileInfo.textContent = 'Error: File size exceeds 10MB limit';
+      fileInfo.textContent = 'Error: File size exceeds 1000MB limit';
       fileInfo.style.color = '#ff4d4f';
       sendDataBtn.disabled = true;
       return;
@@ -196,24 +202,34 @@
     showModal('Connecting to device...');
 
     try {
+      // Ensure WebSocket is connected
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        await connectToDevice();
+      }
+
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const data = e.target.result;
-        const message = {
-          type: 'file_upload',
-          filename: file.name,
-          size: file.size,
-          data: data
-        };
+        try {
+          const data = e.target.result;
+          const message = {
+            type: 'file_upload',
+            filename: file.name,
+            size: file.size,
+            data: data
+          };
 
-        const sent = await sendMessage(message);
-        if (sent) {
-          // Reset the file input
-          fileInput.value = '';
-          fileInfo.textContent = 'File sent successfully';
-          sendDataBtn.disabled = true;
-          showModal('File sent successfully!', false);
-          setTimeout(hideModal, 2000);
+          showModal('Uploading file...');
+          
+          // Send directly via WebSocket (don't use sendMessage wrapper)
+          ws.send(JSON.stringify(message));
+          
+          // Wait for response (upload_success or error)
+          // The response handler in ws.onmessage will handle it
+          
+        } catch (error) {
+          console.error('File upload error:', error);
+          showModal('Error uploading file: ' + error.message, false);
+          setTimeout(hideModal, 3000);
         }
       };
       reader.readAsDataURL(file);
@@ -227,5 +243,12 @@
 
   window.addEventListener('beforeunload', ()=>{ 
     if (ws) ws.close(); 
+  });
+
+  // Connect to WebSocket on page load
+  console.log('Initializing WebSocket connection to:', WS_URL);
+  connectToDevice().catch((error) => {
+    console.error('Initial connection failed:', error);
+    updateConnectionIndicator(false, 'Failed to connect to bridge');
   });
 })();

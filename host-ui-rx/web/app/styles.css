@@ -52,6 +52,11 @@ body {
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
 }
 
+.status-dot.waiting {
+  background-color: #FFA500;
+  box-shadow: 0 0 0 2px rgba(255, 165, 0, 0.2);
+}
+
 .status-dot.disconnected {
   background-color: var(--scarlet);
   box-shadow: 0 0 0 2px rgba(255, 36, 0, 0.2);

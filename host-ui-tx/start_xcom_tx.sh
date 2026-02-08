@@ -43,7 +43,7 @@ fi
 
 # Build and start services
 echo "Building and starting services..."
-if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
+if ! STM32_IP=192.168.0.10 docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
     echo "❌ Error: Failed to start services"
     docker compose logs --tail 10
     exit 1

@@ -7,6 +7,7 @@ services:
     ports:
       - "8001:8000"  # Web UI (different port from tx)
       - "8766:8765"  # WebSocket bridge (different port from tx)
+      - "5000:5000"  # STM32 RX connection port NEED TO FIGURE OUT NEW PORT TO CONFIGURE 
     volumes:
       - ./web/app:/usr/src/app/web/app  # Mount web app files for easy development
       - /dev:/dev           # Give access to USB devices

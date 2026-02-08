@@ -21,7 +21,7 @@ LOG = logging.getLogger("bridge")
 
 
 class EthernetRelay:
-    def __init__(self, stm32_ip=None, stm32_port=5000):
+    def __init__(self, stm32_ip="192.168.0.10", stm32_port=5000):
         self.stm32_ip = stm32_ip
         self.stm32_port = stm32_port
         self._is_connected = False
@@ -90,10 +90,18 @@ class EthernetRelay:
                 timeout=5.0
             )
             
+            LOG.info(f"✓ TCP connection established to {self.stm32_ip}:{self.stm32_port}")
+            
             # Send file size first (4 bytes, little-endian)
             file_size = len(file_data)
-            writer.write(file_size.to_bytes(4, byteorder='little'))
+            size_bytes = file_size.to_bytes(4, byteorder='little')
+            LOG.info(f"Sending size header: {file_size} bytes = {size_bytes.hex()}")
+            writer.write(size_bytes)
             await writer.drain()
+            
+            # Log first 32 bytes of data for debugging
+            preview = file_data[:32].hex() if len(file_data) >= 32 else file_data.hex()
+            LOG.info(f"Sending data... First 32 bytes (hex): {preview}")
             
             # Send entire file
             writer.write(file_data)
@@ -117,7 +125,7 @@ async def ws_handler(websocket, path, relay: EthernetRelay):
     LOG.info("Client connected: %s", websocket.remote_address)
     try:
         async for msg in websocket:
-            LOG.debug("WS received: %s", msg)
+            LOG.info("WS received: %s", msg)
             try:
                 obj = json.loads(msg)
                 msg_type = obj.get("type", "")
@@ -129,6 +137,7 @@ async def ws_handler(websocket, path, relay: EthernetRelay):
                         "type": "connection_status",
                         **connection_status  # This unpacks all the status information
                     }
+                    LOG.info("Sending connection status: %s", response)
                     await websocket.send(json.dumps(response))
                 
                 elif msg_type == "file_upload":
@@ -211,7 +220,7 @@ async def start_web_server(host, port):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stm32-ip", help="STM32 IP address (e.g. 192.168.1.100)")
+    parser.add_argument("--stm32-ip", help="STM32 IP address (e.g. 192.168.0.10)")
     parser.add_argument("--stm32-port", type=int, default=5000, help="STM32 TCP port (default: 5000)")
     parser.add_argument("--ws-port", type=int, default=8765)
     parser.add_argument("--web-port", type=int, default=8000)
@@ -229,7 +238,8 @@ async def main():
     async def handler(ws, path):
         await ws_handler(ws, path, relay)
 
-    async with serve(handler, args.host, args.ws_port):
+    # Set max_size to 1000MB to handle larger file uploads
+    async with serve(handler, args.host, args.ws_port, max_size=1000 * 1024 * 1024):
         LOG.info("WebSocket bridge listening on ws://%s:%s", args.host, args.ws_port)
         try:
             await asyncio.Future()  # run forever

@@ -2,7 +2,6 @@
 (function(){
   const statusModal = document.getElementById('statusModal');
   const modalMessage = document.getElementById('modalMessage');
-  const connectionStatus = document.getElementById('connectionStatus');
   const statusDot = document.querySelector('.status-dot');
   const statusText = document.querySelector('.status-text');
 
@@ -23,10 +22,9 @@
     statusModal.classList.remove('show');
   }
 
-  // Update the connection status display
+  // Update the connection status display (removed - now only using top indicator)
   function updateConnectionStatus(status, isError = false) {
-    connectionStatus.textContent = status;
-    connectionStatus.className = 'connection-status ' + (isError ? 'error' : 'success');
+    // No-op: Center status removed, using only top-right indicator
   }
 
   // Update the connection indicator
@@ -50,7 +48,7 @@
           updateConnectionIndicator(false, 'Connection failed');
         });
       }
-    }, 5000);
+    }, 2000); // Changed from 5000ms to 2000ms for faster updates
   }
 
   // Connect to WebSocket and check STM32 connection
@@ -76,6 +74,7 @@
       }, 5000);
 
       ws.onopen = () => {
+        console.log('WebSocket connected successfully to RX bridge');
         clearTimeout(connectionTimeout);
         ws.send(JSON.stringify({ type: 'check_connection' }));
         startConnectionMonitoring();
@@ -84,17 +83,20 @@
       ws.onmessage = (event) => {
         try {
           const response = JSON.parse(event.data);
+          console.log('Received message:', response);
           if (response.type === 'connection_status') {
             if (response.connected) {
-              const deviceInfo = `Connected (${response.port})`;
+              const deviceInfo = response.reason || `STM32 RX Connected (port ${response.port})`;
+              console.log('Connection status: Connected -', deviceInfo);
               updateConnectionStatus(deviceInfo, false);
               updateConnectionIndicator(true, deviceInfo);
               resolve();
             } else {
-              const errorMsg = response.reason || 'Device not found';
+              const errorMsg = response.reason || 'Not Ready - No STM32 connected';
+              console.log('Connection status: Not Ready -', errorMsg);
               updateConnectionStatus(errorMsg, true);
               updateConnectionIndicator(false, errorMsg);
-              reject(errorMsg);
+              // Don't reject - keep checking in the background
             }
           } else if (response.type === 'data_received') {
             // Handle incoming data here
@@ -136,7 +138,9 @@
   }
 
   // Initial connection
+  console.log('Initializing WebSocket connection to RX bridge:', WS_URL);
   connectToDevice().catch(error => {
+    console.error('Initial connection failed:', error);
     updateConnectionStatus(error, true);
   });
 

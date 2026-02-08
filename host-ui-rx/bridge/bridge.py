@@ -26,11 +26,16 @@ class EthernetReceiver:
         self.last_file = None
         self.last_filename = None
         self.websocket_clients = set()
+        self.stm32_connected = False
+        self.last_connection_time = None
+        self.data_received = False  # Track if we've received any data
         
     async def handle_stm32_connection(self, reader, writer):
         """Handle incoming connection from RX STM32"""
         addr = writer.get_extra_info('peername')
         LOG.info(f"RX STM32 connected from {addr}")
+        self.stm32_connected = True
+        self.last_connection_time = datetime.now()
         
         try:
             # Receive file size first (4 bytes, little-endian)
@@ -55,6 +60,9 @@ class EthernetReceiver:
             if len(file_data) == file_size:
                 LOG.info(f"✓ File received successfully: {len(file_data)} bytes")
                 
+                # Mark that we've received data
+                self.data_received = True
+                
                 # Store file
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"received_{timestamp}.bin"
@@ -75,6 +83,8 @@ class EthernetReceiver:
         except Exception as e:
             LOG.error(f"Error receiving file: {e}")
         finally:
+            self.stm32_connected = False
+            self.data_received = False  # Reset when disconnected
             writer.close()
             await writer.wait_closed()
             LOG.info("RX STM32 disconnected")
@@ -139,12 +149,29 @@ async def ws_handler(websocket, path, receiver: EthernetReceiver):
             }))
         
         async for msg in websocket:
-            LOG.debug("WS received: %s", msg[:100])
+            LOG.info("WS received: %s", msg[:100])
             try:
                 obj = json.loads(msg)
                 msg_type = obj.get("type", "")
                 
-                if msg_type == "get_last_file":
+                if msg_type == "check_connection":
+                    # Simple connection status - just like TX bridge
+                    if receiver.stm32_connected:
+                        response = {
+                            "type": "connection_status",
+                            "connected": True,
+                            "port": receiver.listen_port
+                        }
+                    else:
+                        response = {
+                            "type": "connection_status",
+                            "connected": False,
+                            "reason": f"No STM32 connected"
+                        }
+                    LOG.info("Sending connection status: %s", response)
+                    await websocket.send(json.dumps(response))
+                
+                elif msg_type == "get_last_file":
                     # Client requesting last file
                     if receiver.last_file:
                         file_b64 = base64.b64encode(receiver.last_file).decode('ascii')
@@ -225,7 +252,8 @@ async def main():
     async def handler(ws, path):
         await ws_handler(ws, path, receiver)
 
-    ws_server = await serve(handler, args.host, args.ws_port)
+    # Set max_size to 20MB to handle larger file uploads
+    ws_server = await serve(handler, args.host, args.ws_port, max_size=20 * 1024 * 1024)
     LOG.info(f"✓ WebSocket server listening on ws://{args.host}:{args.ws_port}")
 
     # Start TCP server for RX STM32
