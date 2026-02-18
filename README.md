@@ -10,6 +10,7 @@ ECE3906 Capstone project 2025-26
     - [Cloning this Repository](#cloning-this-repository)
     - [Required Software](#required-software)
     - [Verifying Installation](#verifying-installation)
+    - [Establishing Ethernet/STM32 connection](#establising-ethernet/stm32-connection)
 - [Transmitting UI](#transmitting-UI)
     - [TX Set-Up](#tx-set-up)
     - [Transmitting Your Data](#transmitting-your-data)
@@ -105,6 +106,40 @@ git --version
 # Verify Docker is running
 docker ps
 ```
+### Establishing Ethernet/STM32 Connection
+
+1. Connect the STM32 to your laptop via Ethernet and power it on.
+
+2. Open a terminal and try to ping the default STM32 IP address:
+
+    ```bash
+    ping 192.168.1.10
+    ```
+
+3. If the ping succeeds, your Ethernet link is working and you can proceed.
+
+    **Example of a successful ping (macOS/Linux):**
+    ```
+    PING 192.168.1.10 (192.168.1.10): 56 data bytes
+    64 bytes from 192.168.1.10: icmp_seq=0 ttl=64 time=0.845 ms
+    64 bytes from 192.168.1.10: icmp_seq=1 ttl=64 time=0.781 ms
+    64 bytes from 192.168.1.10: icmp_seq=2 ttl=64 time=0.802 ms
+    
+    --- 192.168.1.10 ping statistics ---
+    3 packets transmitted, 3 packets received, 0.0% packet loss
+    ```
+
+4. If the ping does **not** succeed, open your network settings and set the
+   STM32’s IP to `192.168.1.10`, then try the ping again.
+
+5. If it still does not work, change the STM32’s IP to `192.168.5.10` and try
+   pinging `192.168.1.10` again to verify your laptop can see the STM32.
+
+    If that still fails, confirm your Ethernet adapter is connected and that
+    your laptop is on the same subnet as the STM32.
+
+    **The IP address that works with your laptop will be used as an input for the**
+    **start up scripts, so copy this IP address to use later.**
 
 # Transmitting UI
 
@@ -126,7 +161,7 @@ docker ps
     ```
 3. Run the `start_xcom_tx.sh` script to begin building the transmitter:
     ```bash
-    ./start_xcom_tx.sh
+    ./start_xcom_tx.sh YOUR WORKING IP ADDRESS
     ```
     To stop:
     ```bash
