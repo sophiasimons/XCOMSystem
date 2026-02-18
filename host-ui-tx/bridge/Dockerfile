@@ -18,6 +18,6 @@ HEALTHCHECK --interval=30s --timeout=3s \
 # Expose ports
 EXPOSE 8000 8765
 # Command to run the bridge application with proper host binding
-# Note: Pass --stm32-ip as environment variable or docker run argument
-# Example: docker run -e STM32_IP=192.168.1.100 ...
-CMD ["sh", "-c", "python ./bridge.py --ws-port 8765 --web-port 8000 --host 0.0.0.0 --stm32-ip ${STM32_IP:-192.168.0.10} --stm32-port ${STM32_PORT:-5000}"]
+# Note: STM32_IP environment variable is REQUIRED
+# Example: docker run -e STM32_IP=192.168.1.10 ...
+CMD ["sh", "-c", "if [ -z \"$STM32_IP\" ]; then echo 'Error: STM32_IP environment variable is required'; exit 1; fi; python ./bridge.py --ws-port 8765 --web-port 8000 --host 0.0.0.0 --stm32-ip ${STM32_IP} --stm32-port ${STM32_PORT:-5000}"]

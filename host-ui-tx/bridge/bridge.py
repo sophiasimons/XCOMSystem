@@ -2,9 +2,10 @@
 """XCOM Bridge: WebSocket server that handles file transfers to STM32 via Ethernet.
 
 Usage:
-  python bridge.py --stm32-ip 192.168.1.100 --stm32-port 5000 --ws-port 8765
+  python bridge.py --stm32-ip <IP_ADDRESS> --stm32-port 5000 --ws-port 8765
 
-If --stm32-ip is omitted the bridge will run in simulated mode and echo messages.
+The --stm32-ip argument is required. Use the IP address assigned to your STM32 
+(from DHCP, static configuration, or link-local addressing).
 """
 
 import base64
@@ -21,7 +22,7 @@ LOG = logging.getLogger("bridge")
 
 
 class EthernetRelay:
-    def __init__(self, stm32_ip="192.168.0.10", stm32_port=5000):
+    def __init__(self, stm32_ip, stm32_port=5000):
         self.stm32_ip = stm32_ip
         self.stm32_port = stm32_port
         self._is_connected = False
@@ -82,42 +83,47 @@ class EthernetRelay:
             return
             
         try:
-            LOG.info(f"Sending {filename} ({len(file_data)} bytes) to {self.stm32_ip}:{self.stm32_port}...")
+            file_size = len(file_data)
+            LOG.info(
+                "Send start: %s (%d bytes) -> %s:%s",
+                filename,
+                file_size,
+                self.stm32_ip,
+                self.stm32_port,
+            )
             
             # Open TCP connection to STM32
+            connect_start = asyncio.get_event_loop().time()
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self.stm32_ip, self.stm32_port),
                 timeout=5.0
             )
-            
-            LOG.info(f"✓ TCP connection established to {self.stm32_ip}:{self.stm32_port}")
+            connect_time_ms = (asyncio.get_event_loop().time() - connect_start) * 1000
+            LOG.info("TCP connected in %.1f ms", connect_time_ms)
             
             # Send file size first (4 bytes, little-endian)
-            file_size = len(file_data)
-            size_bytes = file_size.to_bytes(4, byteorder='little')
-            LOG.info(f"Sending size header: {file_size} bytes = {size_bytes.hex()}")
-            writer.write(size_bytes)
+            writer.write(file_size.to_bytes(4, byteorder='little'))
             await writer.drain()
-            
-            # Log first 32 bytes of data for debugging
-            preview = file_data[:32].hex() if len(file_data) >= 32 else file_data.hex()
-            LOG.info(f"Sending data... First 32 bytes (hex): {preview}")
+            LOG.info("Size header sent (%d bytes)", file_size)
             
             # Send entire file
+            send_start = asyncio.get_event_loop().time()
             writer.write(file_data)
             await writer.drain()
+            send_time_ms = (asyncio.get_event_loop().time() - send_start) * 1000
+            LOG.info("Payload buffered (%d bytes) in %.1f ms", file_size, send_time_ms)
             
             # Close connection
             writer.close()
             await writer.wait_closed()
             
-            LOG.info(f"File transfer complete: {filename}")
+            LOG.info("Send complete: %s", filename)
                 
         except asyncio.TimeoutError:
             LOG.error(f"Timeout sending file to {self.stm32_ip}:{self.stm32_port}")
             raise RuntimeError(f"Connection timeout")
         except Exception as e:
-            LOG.error(f"Failed to send file: {e}")
+            LOG.error("Failed to send file %s to %s:%s: %s", filename, self.stm32_ip, self.stm32_port, e)
             raise
 
 
@@ -220,7 +226,7 @@ async def start_web_server(host, port):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stm32-ip", help="STM32 IP address (e.g. 192.168.0.10)")
+    parser.add_argument("--stm32-ip", help="STM32 IP address (required - from DHCP or static)", required=True)
     parser.add_argument("--stm32-port", type=int, default=5000, help="STM32 TCP port (default: 5000)")
     parser.add_argument("--ws-port", type=int, default=8765)
     parser.add_argument("--web-port", type=int, default=8000)
@@ -228,6 +234,8 @@ async def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
+    
+    LOG.info("Connecting to STM32 at %s:%d", args.stm32_ip, args.stm32_port)
 
     relay = EthernetRelay(stm32_ip=args.stm32_ip, stm32_port=args.stm32_port)
     await relay.connect()
