@@ -222,3 +222,54 @@ h3 {
   border-radius: 8px;
   border: 1px solid rgba(255, 36, 0, 0.2);
 }
+
+.file-list {
+  margin-top: 12px;
+  text-align: left;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border: 1px solid var(--gray-light);
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.file-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--gray-dark);
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--gray);
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  background: var(--scarlet);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.btn.secondary {
+  background: #f3f4f6;
+  color: var(--gray-dark);
+}

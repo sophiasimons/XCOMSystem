@@ -1,7 +1,7 @@
 /**
  * @file test_receive.c
  * @brief Ethernet connectivity test - RX STM32 reception verification
- * @description Tests receiving data from RX STM32 after it receives from X-ray circuit
+ * @description Tests receiving data from RX STM32 after it receives from circuit
  */
 
 #include <stdio.h>
