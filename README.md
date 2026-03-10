@@ -161,7 +161,7 @@ docker ps
     ```
 3. Run the `start_xcom_tx.sh` script to begin building the transmitter:
     ```bash
-    ./start_xcom_tx.sh YOUR WORKING IP ADDRESS
+    STM32_IP=<your-working-ip> ./start_xcom_tx.sh
     ```
     To stop:
     ```bash
@@ -171,13 +171,12 @@ docker ps
 
 4. Open http://localhost:8000 in your browser to view
 
-    Stuff on how to select a file and send it yada yada
-
 ### Transmitting Your Data
 
-1. Ensure the STM32 Microcontroller is connected to the TX laptop:
-2. Choose a file:
-3. Send File:
+1. Ensure the STM32 Microcontroller is connected to the TX laptop: The system will only allow you to send while the laptop detects the microcontroller connected. You can track this status at the top right corner of the webpage.
+2. Choose a file: Select the 'Choose File' button to open your laptop's File Manager, select a file and press 'Open'
+3. Send File: It's as easy as clicking `SEND DATA`! 
+
 
 # Receiving UI
 
@@ -215,8 +214,8 @@ docker ps
 ### Receiving Your Data
 
 1. Ensure the FPGA is connected to the RX laptop:
-2. Choose a file:
-3. Send File:
+2. Ensure data has been sent from the TX laptop:
+3. Receive Data:
 
 
 

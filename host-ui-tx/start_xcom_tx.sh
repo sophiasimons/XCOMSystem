@@ -82,4 +82,3 @@ XCOM System is ready:
    - View logs:    docker compose logs -f
    - Stop system:  ./start_xcom_tx.sh stop
 "
-"
