@@ -101,6 +101,12 @@ class EthernetRelay:
             connect_time_ms = (asyncio.get_event_loop().time() - connect_start) * 1000
             LOG.info("TCP connected in %.1f ms", connect_time_ms)
             
+            # Send 4 byte start flag (sentinel) so FPGA can detect file stream start
+            flag = bytes(0xAA, 0xBB, 0xCC, 0xDD) 
+            writer.write(flag)
+            await writer.drain()
+            LOG.info("Start flag sent (0xAABBCCDD)")
+
             # Send file size first (4 bytes, little-endian)
             writer.write(file_size.to_bytes(4, byteorder='little'))
             await writer.drain()
