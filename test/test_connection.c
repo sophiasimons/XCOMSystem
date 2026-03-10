@@ -21,8 +21,7 @@
     #pragma comment(lib, "ws2_32.lib")
 #endif
 
-// Default test configuration (can be overridden with command line args)
-#define DEFAULT_TX_STM32_IP "192.168.1.100"
+// Default test configuration
 #define DEFAULT_PORT 5000
 
 /**
@@ -248,11 +247,26 @@ bool send_test_data(const char *ip_address, int port) {
  * @brief Main test function
  */
 int main(int argc, char *argv[]) {
-    const char *tx_stm32_ip = DEFAULT_TX_STM32_IP;
+    const char *tx_stm32_ip = NULL;
     int port = DEFAULT_PORT;
     
     // Parse command line arguments
-    if (argc > 1) tx_stm32_ip = argv[1];
+    if (argc < 2) {
+        printf("\n");
+        printf("═══════════════════════════════════════════════════════\n");
+        printf("  XCOM TX STM32 Ethernet Connection Test\n");
+        printf("═══════════════════════════════════════════════════════\n\n");
+        printf("Error: IP address is required\n\n");
+        printf("Usage: %s <ip_address> [port]\n", argv[0]);
+        printf("\nExamples:\n");
+        printf("  %s 192.168.1.10          (uses default port 5000)\n", argv[0]);
+        printf("  %s 192.168.1.10 5000     (specify custom port)\n", argv[0]);
+        printf("  %s 169.254.100.10        (link-local address)\n", argv[0]);
+        printf("\n");
+        return 1;
+    }
+    
+    tx_stm32_ip = argv[1];
     if (argc > 2) port = atoi(argv[2]);
     
     printf("\n");
@@ -332,9 +346,6 @@ int main(int argc, char *argv[]) {
         printf("  • Flash tx_main.c to STM32 TX board\n");
     }
     printf("═══════════════════════════════════════════════════════\n\n");
-    
-    printf("Usage: %s [tx_ip] [port]\n", argv[0]);
-    printf("Example: %s %s %d\n\n", argv[0], tx_stm32_ip, port);
     
     return all_passed ? 0 : 1;
 }

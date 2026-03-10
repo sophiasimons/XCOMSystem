@@ -1,7 +1,7 @@
 /**
  * @file test_receive.c
  * @brief Ethernet connectivity test - RX STM32 reception verification
- * @description Tests receiving data from RX STM32 after it receives from X-ray circuit
+ * @description Tests receiving data from RX STM32 after it receives from circuit
  */
 
 #include <stdio.h>
@@ -23,8 +23,7 @@
     #pragma comment(lib, "ws2_32.lib")
 #endif
 
-// Default test configuration (can be overridden with command line args)
-#define DEFAULT_RX_STM32_IP "192.168.1.101"
+// Default test configuration
 #define DEFAULT_PORT 5000
 #define RECEIVE_TIMEOUT_SEC 30  // Wait up to 30 seconds for data
 
@@ -304,11 +303,26 @@ bool receive_test_data(const char *ip_address, int port) {
  * @brief Main test function
  */
 int main(int argc, char *argv[]) {
-    const char *rx_stm32_ip = DEFAULT_RX_STM32_IP;
+    const char *rx_stm32_ip = NULL;
     int port = DEFAULT_PORT;
     
     // Parse command line arguments
-    if (argc > 1) rx_stm32_ip = argv[1];
+    if (argc < 2) {
+        printf("\n");
+        printf("═══════════════════════════════════════════════════════\n");
+        printf("  XCOM RX STM32 Ethernet Reception Test\n");
+        printf("═══════════════════════════════════════════════════════\n\n");
+        printf("Error: IP address is required\n\n");
+        printf("Usage: %s <ip_address> [port]\n", argv[0]);
+        printf("\nExamples:\n");
+        printf("  %s 192.168.1.10          (uses default port 5000)\n", argv[0]);
+        printf("  %s 192.168.1.10 5000     (specify custom port)\n", argv[0]);
+        printf("  %s 169.254.100.10        (link-local address)\n", argv[0]);
+        printf("\n");
+        return 1;
+    }
+    
+    rx_stm32_ip = argv[1];
     if (argc > 2) port = atoi(argv[2]);
     
     printf("\n");
@@ -378,7 +392,6 @@ int main(int argc, char *argv[]) {
         printf("  • Network: Connected ✓\n");
         printf("  • TCP Connection: Working ✓\n");
         printf("  • Data Reception: Successful ✓\n");
-        printf("\n  System is ready for production use!\n");
     } else {
         printf("  ✗ Some tests FAILED\n");
         printf("\n  Please fix the issues above before proceeding\n");
@@ -390,9 +403,6 @@ int main(int argc, char *argv[]) {
         printf("  • Make sure data was sent from TX side first\n");
     }
     printf("═══════════════════════════════════════════════════════\n\n");
-    
-    printf("Usage: %s [rx_ip] [port]\n", argv[0]);
-    printf("Example: %s %s %d\n\n", argv[0], rx_stm32_ip, port);
     
     return all_passed ? 0 : 1;
 }

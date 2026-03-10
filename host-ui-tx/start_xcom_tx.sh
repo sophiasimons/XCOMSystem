@@ -6,9 +6,31 @@ if [ "$1" = "stop" ]; then
     docker compose down -v --remove-orphans >/dev/null 2>&1
     exit 0
 fi
+
+# Check if STM32_IP is provided
+if [ -z "$STM32_IP" ]; then
+    echo ""
+    echo "❌ Error: STM32_IP environment variable is required"
+    echo ""
+    echo "Usage:"
+    echo "  STM32_IP=<ip_address> ./start_xcom_tx.sh"
+    echo ""
+    echo "Examples:"
+    echo "  STM32_IP=192.168.1.10 ./start_xcom_tx.sh"
+    echo "  STM32_IP=169.254.100.10 ./start_xcom_tx.sh"
+    echo ""
+    echo "To find your STM32 IP:"
+    echo "  - Check your router's DHCP client list"
+    echo "  - Use: arp -a | grep -i stm"
+    echo "  - Check your STM32 firmware configuration"
+    echo ""
+    exit 1
+fi
+
 cd "$(dirname "$0")"
 
 echo "Starting XCOM System..."
+echo "STM32 IP: $STM32_IP"
 
 # Check if Docker is available and running
 if ! docker info >/dev/null 2>&1; then
@@ -43,7 +65,7 @@ fi
 
 # Build and start services
 echo "Building and starting services..."
-if ! STM32_IP=192.168.0.10 docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
+if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
     echo "❌ Error: Failed to start services"
     docker compose logs --tail 10
     exit 1
@@ -53,6 +75,7 @@ fi
 echo "
 XCOM System is ready:
 
+   STM32 IP: $STM32_IP
    Web UI: http://localhost:8000
 
    Commands:

@@ -12,7 +12,7 @@ services:
       - ./web/app:/usr/src/app/web/app  # Mount web app files for easy development
     environment:
       - PYTHONUNBUFFERED=1  # Show Python logs immediately
-      - STM32_IP=${STM32_IP:-192.168.1.10}  # STM32 IP address (configurable)
-      - STM32_PORT=${STM32_PORT:-5000}       # STM32 TCP port (configurable)
+      - STM32_IP=${STM32_IP}  # STM32 IP address (REQUIRED - set via environment)
+      - STM32_PORT=${STM32_PORT:-5000}  # STM32 TCP port (default: 5000)
     # Make sure container keeps running and restarts if it fails
     restart: unless-stopped
