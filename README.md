@@ -197,9 +197,14 @@ docker ps
     ```bash   
     sudo systemctl start docker
     ```
-3. Run the `start_xcom_rx.sh` script to begin building the transmitter:
+3. Run the `start_xcom_rx.sh` script to begin building the receiver:
+
     ```bash
-    ./start_xcom_rx.sh
+    `` # Start and target an FPGA at a given IP:
+    FPGA_IP=169.254.100.10 start_xcom_rx.sh
+    `` # Start with FPGA and custom port and LSB order:
+    FPGA_IP=169.254.100.10 FPGA_PORT=6001 FPGA_BITPACKED=1 FPGA_BITORDER=lsb start_xcom_rx.sh
+
     ```
     To stop:
     ```bash
@@ -216,8 +221,7 @@ docker ps
 1. Ensure the FPGA is connected to the RX laptop:
 2. Ensure data has been sent from the TX laptop:
 3. Receive Data:
-
-
+    Click the "Open" 
 
 # Physical Design
 
