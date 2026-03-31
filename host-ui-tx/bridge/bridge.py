@@ -20,6 +20,41 @@ from websockets import serve
 
 LOG = logging.getLogger("bridge")
 
+# Enable Manchester encoding for payloads. When True, each input byte is
+# transformed into two output bytes (16 bits) using the mapping:
+#   data bit 1 -> '10'
+#   data bit 0 -> '01'
+# MSB-first within each input byte.
+MANCHESTER_ENABLED = True
+
+
+def manchester_encode_chunk(data: bytes, msb_first: bool = True) -> bytes:
+    """Manchester-encode a bytes object (MSB-first by default).
+
+    Each input byte becomes 2 output bytes (16 bits). Mapping:
+      bit=1 -> '10' ; bit=0 -> '01'
+    This function is chunk-safe: encoding never depends on adjacent chunks.
+    """
+    out = bytearray(2 * len(data))
+    out_i = 0
+    for b in data:
+        word = 0
+        if msb_first:
+            for bit_pos in range(7, -1, -1):
+                bit = (b >> bit_pos) & 1
+                code = 0b10 if bit else 0b01
+                word = (word << 2) | code
+        else:
+            for bit_pos in range(0, 8):
+                bit = (b >> bit_pos) & 1
+                code = 0b10 if bit else 0b01
+                word = (word << 2) | code
+        out[out_i] = (word >> 8) & 0xFF
+        out[out_i + 1] = word & 0xFF
+        out_i += 2
+    return bytes(out)
+
+
 
 class EthernetRelay:
     def __init__(self, stm32_ip, stm32_port=5000):
@@ -101,23 +136,56 @@ class EthernetRelay:
             connect_time_ms = (asyncio.get_event_loop().time() - connect_start) * 1000
             LOG.info("TCP connected in %.1f ms", connect_time_ms)
             
-            # Send 4 byte start flag (sentinel) so FPGA can detect file stream start
-            flag = bytes(0xAA, 0xBB, 0xCC, 0xDD) 
-            writer.write(flag)
-            await writer.drain()
-            LOG.info("Start flag sent (0xAABBCCDD)")
+            # Streamed framing for large files: send START_FLAG + 4-byte size
+            # header, then send the file in chunks. Receiver should read exactly
+            # `file_size` bytes and not expect an END flag.
+            START_FLAG = b"\xAA\xBB\xCC\xDD"
+            CHUNK_SIZE = 64 * 1024  # 64 KiB
+            # Try to disable Nagle's algorithm to reduce latency for the first
+            # bytes (start flag + first chunk). This reduces the chance the
+            # TCP stack will delay small writes.
+            sock = writer.get_extra_info('socket')
+            if sock:
+                try:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                except Exception:
+                    LOG.debug("Could not set TCP_NODELAY on socket")
 
-            # Send file size first (4 bytes, little-endian)
-            writer.write(file_size.to_bytes(4, byteorder='little'))
-            await writer.drain()
-            LOG.info("Size header sent (%d bytes)", file_size)
-            
-            # Send entire file
+            # To minimize delay between the START_FLAG and payload, write the
+            # START_FLAG + size header + the first chunk in a single write and
+            # then await drain once. This ensures the receiver sees the header
+            # and immediate data with minimal scheduling overhead.
             send_start = asyncio.get_event_loop().time()
-            writer.write(file_data)
+            offset = 0
+            if file_size > 0:
+                first_end = min(CHUNK_SIZE, file_size)
+                first_chunk = file_data[0:first_end]
+                if MANCHESTER_ENABLED:
+                    first_chunk = manchester_encode_chunk(first_chunk)
+                writer.write(START_FLAG + file_size.to_bytes(4, byteorder='little') + first_chunk)
+                offset = first_end
+            else:
+                # empty file: just send header
+                writer.write(START_FLAG + file_size.to_bytes(4, byteorder='little'))
+
             await writer.drain()
+            LOG.info("Start flag, size header and first chunk sent (first %d bytes)", offset)
+
+            # Stream remaining file in chunks
+            while offset < file_size:
+                end = offset + CHUNK_SIZE
+                chunk = file_data[offset:end]
+                if MANCHESTER_ENABLED:
+                    chunk = manchester_encode_chunk(chunk)
+                writer.write(chunk)
+                await writer.drain()
+                offset = end
+
             send_time_ms = (asyncio.get_event_loop().time() - send_start) * 1000
-            LOG.info("Payload buffered (%d bytes) in %.1f ms", file_size, send_time_ms)
+            LOG.info("Payload streamed (%d bytes) in %.1f ms", file_size, send_time_ms)
+
+            send_time_ms = (asyncio.get_event_loop().time() - send_start) * 1000
+            LOG.info("Payload streamed (%d bytes) in %.1f ms", file_size, send_time_ms)
             
             # Close connection
             writer.close()

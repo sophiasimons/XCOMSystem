@@ -195,39 +195,72 @@
     const actions = document.createElement('div');
     actions.className = 'file-actions';
 
-    // Open/download button - links to files endpoint served by the bridge
+    // Open button - try to preview in a new tab if the file's Content-Type is previewable
     const open = document.createElement('a');
     open.className = 'btn';
     open.textContent = 'Open';
     open.href = `/files/${encodeURIComponent(filename)}`;
     open.target = '_blank';
 
-  // Download button: explicitly instruct browser to download the file
-  const download = document.createElement('a');
-  download.className = 'btn';
-  download.textContent = 'Download';
-  download.href = `/files/${encodeURIComponent(filename)}`;
-  // 'download' attribute suggests the browser download instead of navigate
-  download.setAttribute('download', filename);
+    // Intercept clicks to try and preview compatible files (images, text, audio, video, pdf, json)
+    open.addEventListener('click', async (e) => {
+      // Let middle-click or ctrl/cmd+click open a new tab normally
+      if (e.ctrlKey || e.metaKey || e.button === 1) return;
+      e.preventDefault();
+      const url = open.href;
+      try {
+        // Try HEAD to avoid downloading body; fall back to GET if HEAD not allowed
+        let resp = await fetch(url, { method: 'HEAD' });
+        if (!resp.ok) {
+          resp = await fetch(url, { method: 'GET' });
+        }
+        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+        const previewable = ct.startsWith('image/') || ct.startsWith('text/') || ct.startsWith('audio/') || ct.startsWith('video/') || ct.includes('pdf') || ct.includes('json');
+        if (previewable) {
+          window.open(url, '_blank');
+        } else {
+          // Not previewable: still open in a new tab so user can decide (browser may download)
+          window.open(url, '_blank');
+        }
+      } catch (err) {
+        // On error, fallback to opening the resource in a new tab
+        window.open(url, '_blank');
+      }
+    });
 
-    // Show folder button - opens the files index or the host folder via file:// if available
-    const folder = document.createElement('a');
-    folder.className = 'btn secondary';
-    folder.textContent = 'Show folder';
-    folder.target = '_blank';
+    // Replace "Show folder" with a collapsible path display.
+    const pathToggle = document.createElement('button');
+    pathToggle.className = 'btn secondary';
+    pathToggle.textContent = 'Path';
+
+    const pathDisplay = document.createElement('div');
+    pathDisplay.className = 'file-path';
+    pathDisplay.style.display = 'none';
+    // Show full host path if available, otherwise show the files endpoint path
     if (hostReceivedPath) {
-      // On macOS, file:// + absolute path opens Finder when the user clicks the link
-      folder.href = 'file://' + encodeURI(hostReceivedPath);
+      pathDisplay.textContent = hostReceivedPath + '/' + filename;
     } else {
-      folder.href = '/files/';
+      pathDisplay.textContent = window.location.origin + '/files/' + encodeURIComponent(filename);
     }
 
-  actions.appendChild(open);
-  actions.appendChild(download);
-  actions.appendChild(folder);
+    pathToggle.addEventListener('click', () => {
+      // Update path text at toggle time so it reflects any host path learned after initial load
+      if (hostReceivedPath) {
+        pathDisplay.textContent = hostReceivedPath + '/' + filename;
+      } else {
+        pathDisplay.textContent = window.location.origin + '/files/' + encodeURIComponent(filename);
+      }
+      pathDisplay.style.display = (pathDisplay.style.display === 'none') ? 'block' : 'none';
+    });
 
-    item.appendChild(meta);
-    item.appendChild(actions);
+  actions.appendChild(open);
+  actions.appendChild(pathToggle);
+  // Insert elements so the path display appears under the file meta (name + size)
+  // Put the path display inside the meta column so it sits below name/size
+  meta.appendChild(pathDisplay);
+  item.appendChild(meta);
+  item.appendChild(actions);
+
   item.setAttribute('data-filename', filename);
 
     // Prepend so newest appear first

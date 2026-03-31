@@ -7,6 +7,7 @@ if [ "$1" = "stop" ]; then
     docker compose down -v --remove-orphans >/dev/null 2>&1
     exit 0
 fi
+
 cd "$(dirname "$0")"
 
 echo "Starting XCOM RX System..."
@@ -30,7 +31,7 @@ echo "✓ Docker is running"
 
 # Clean up any existing containers
 echo "Cleaning up existing containers..."
-docker compose down --remove-orphans >/dev/null 2>&1
+docker compose down --remove-orphans >/dev/null 2>&1 || true
 
 
 # detect FPGA board (prefer FPGA_IP env if provided)
@@ -45,15 +46,13 @@ if [ -n "$FPGA_IP" ]; then
         echo "FPGA at $FPGA_IP not reachable"
     fi
 else
-    # Try a basic network probe: look for any device on link-local that responds on common FPGA port (optional)
-    echo "FPGA_IP not set; skipping explicit FPGA ping check. If you want automatic detection, set FPGA_IP environment variable."
+    echo "FPGA_IP not set; starting without FPGA connection. To enable, set FPGA_IP environment variable."
 fi
 
 # Build BRIDGE_ARGS so the container will start the bridge with FPGA listener when present.
 # If an FPGA was detected, include --fpga-port and optional flags; otherwise use defaults.
 BRIDGE_ARGS="--ws-port 8766 --web-port 8001 --host 0.0.0.0"
 if [ "$FPGA_CONNECTED" -eq 1 ]; then
-    # Allow user to override FPGA_PORT, FPGA_BITPACKED, FPGA_BITORDER via env when invoking the script
     : "${FPGA_PORT:=5001}"
     : "${FPGA_BITPACKED:=0}"
     : "${FPGA_BITORDER:=msb}"
@@ -66,14 +65,16 @@ if [ "$FPGA_CONNECTED" -eq 1 ]; then
 fi
 export BRIDGE_ARGS
 
-# Build and start services
-echo "Building and starting services..."
 # Ensure host-side received_files exists and export path so container knows host path
 mkdir -p "$(pwd)/received_files"
 export HOST_RECEIVED_DIR="$(pwd)/received_files"
-if ! FPGA_IP="${FPGA_IP:-}" docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
-    echo "Error: Failed to start services"
-    docker compose logs --tail 10
+
+# Build and start services. If the user wants a custom STM32 host port mapping, they
+# can export STM32_PORT beforehand (e.g. STM32_PORT=5010 ./start_xcom_rx.sh).
+echo "Building and starting services..."
+if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
+    echo "❌ Error: Failed to start services"
+    docker compose logs --tail 10 || true
     exit 1
 fi
 
