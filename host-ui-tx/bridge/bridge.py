@@ -20,39 +20,7 @@ from websockets import serve
 
 LOG = logging.getLogger("bridge")
 
-# Enable Manchester encoding for payloads. When True, each input byte is
-# transformed into two output bytes (16 bits) using the mapping:
-#   data bit 1 -> '10'
-#   data bit 0 -> '01'
-# MSB-first within each input byte.
-MANCHESTER_ENABLED = True
-
-
-def manchester_encode_chunk(data: bytes, msb_first: bool = True) -> bytes:
-    """Manchester-encode a bytes object (MSB-first by default).
-
-    Each input byte becomes 2 output bytes (16 bits). Mapping:
-      bit=1 -> '10' ; bit=0 -> '01'
-    This function is chunk-safe: encoding never depends on adjacent chunks.
-    """
-    out = bytearray(2 * len(data))
-    out_i = 0
-    for b in data:
-        word = 0
-        if msb_first:
-            for bit_pos in range(7, -1, -1):
-                bit = (b >> bit_pos) & 1
-                code = 0b10 if bit else 0b01
-                word = (word << 2) | code
-        else:
-            for bit_pos in range(0, 8):
-                bit = (b >> bit_pos) & 1
-                code = 0b10 if bit else 0b01
-                word = (word << 2) | code
-        out[out_i] = (word >> 8) & 0xFF
-        out[out_i + 1] = word & 0xFF
-        out_i += 2
-    return bytes(out)
+# No Manchester encoding by default - payloads are sent raw.
 
 
 
@@ -160,8 +128,6 @@ class EthernetRelay:
             if file_size > 0:
                 first_end = min(CHUNK_SIZE, file_size)
                 first_chunk = file_data[0:first_end]
-                if MANCHESTER_ENABLED:
-                    first_chunk = manchester_encode_chunk(first_chunk)
                 writer.write(START_FLAG + file_size.to_bytes(4, byteorder='little') + first_chunk)
                 offset = first_end
             else:
@@ -175,8 +141,6 @@ class EthernetRelay:
             while offset < file_size:
                 end = offset + CHUNK_SIZE
                 chunk = file_data[offset:end]
-                if MANCHESTER_ENABLED:
-                    chunk = manchester_encode_chunk(chunk)
                 writer.write(chunk)
                 await writer.drain()
                 offset = end
