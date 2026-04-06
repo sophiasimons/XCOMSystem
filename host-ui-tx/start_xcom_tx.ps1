@@ -54,7 +54,7 @@ if ($Ip) { $env:STM32_IP = $Ip }
 
 if (-not $env:STM32_IP -or $env:STM32_IP.Trim() -eq '') {
     Write-Err "`n❌ Error: STM32 IP is required. Provide -Ip or set `$env:STM32_IP`n"
-    Write-Host "Usage examples:`n  .\start_xcom_tx.ps1 -Ip 192.168.1.10`n  `$env:STM32_IP = '192.168.1.10'; .\start_xcom_tx.ps1`n"
+    Write-Info "Usage examples:`n  .\start_xcom_tx.ps1 -Ip 192.168.1.10`n  `$env:STM32_IP = '192.168.1.10'; .\start_xcom_tx.ps1`n"
     exit 1
 }
 
@@ -66,7 +66,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'docker not available' }
 } catch {
     Write-Err "`n❌ Docker is not running or not on PATH`n"
-    Write-Host "To start Docker:`n  Docker Desktop -> Start (or ensure 'docker' is on PATH)`n"
+    Write-Info "To start Docker:`n  Docker Desktop -> Start (or ensure 'docker' is on PATH)`n"
     exit 1
 }
 
@@ -114,7 +114,7 @@ try {
     }
 } catch {
     Write-Err "❌ Error: Failed to start services"
-    Write-Host "--- Recent logs ---"
+   
     & docker compose logs --tail 10
     exit 1
 }
