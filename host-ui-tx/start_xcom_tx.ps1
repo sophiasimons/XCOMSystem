@@ -119,13 +119,13 @@ try {
     exit 1
 }
 
-Write-Host ""
-Write-Host "XCOM System is ready:"
-Write-Host ""
-Write-Host "   STM32 IP: $($env:STM32_IP)"
-Write-Host "   Web UI: http://localhost:8000"
-Write-Host ""
-Write-Host "   Commands:"
-Write-Host '   - View logs:    docker compose logs -f'
-Write-Host '   - Stop system:  .\start_xcom_tx.ps1 stop'
-Write-Host ""
+#Write-Host ""
+#Write-Host "XCOM System is ready:"
+##rite-Host ""
+#Write-Host "   STM32 IP: $($env:STM32_IP)"
+#Write-Host "   Web UI: http://localhost:8000"
+#Write-Host ""
+#Write-Host "   Commands:"
+#Write-Host '   - View logs:    docker compose logs -f'
+#Write-Host '   - Stop system:  .\start_xcom_tx.ps1 stop'
+#Write-Host ""
