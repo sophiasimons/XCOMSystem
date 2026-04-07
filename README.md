@@ -33,7 +33,15 @@ ECE3906 Capstone project 2025-26
 
 # Software Prerequisites/Set-Up
 
+## Prerequisites:
+
+- **Docker installation:**
+    This might take a while but is a one-time installation.
+    Download: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
 Before setting up the XCOM system, ensure you complete the following sections **on BOTH TX and RX laptops**:
+
+## Software Set-up:
 
 ### Cloning this Repository
 
@@ -71,7 +79,7 @@ Alternatively, to download as a ZIP file:
 3. **Docker**
    - Check version: `docker --version`
    - Check Docker service: `docker info`
-   - Download: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
 
 4. **Docker Compose**
    - Check version: `docker-compose --version`
@@ -106,7 +114,7 @@ git --version
 # Verify Docker is running
 docker ps
 ```
-### Establishing Ethernet/STM32 Connection
+### TX LAPTOP: Establishing Ethernet/STM32 Connection
 
 1. Connect the STM32 to your laptop via Ethernet and power it on.
 
@@ -159,14 +167,39 @@ docker ps
     ```bash   
     sudo systemctl start docker
     ```
-3. Run the `start_xcom_tx.sh` script to begin building the transmitter:
+3. Run the start script to begin building the transmitter. Choose the instruction that matches your OS:
+
+   macOS / Linux (bash / zsh)
+
     ```bash
     STM32_IP=<your-working-ip> ./start_xcom_tx.sh
     ```
-    To stop:
-    ```bash
-    ./start_xcom_tx.sh stop
+
+   Windows (PowerShell)
+
+    If you're on Windows use the PowerShell wrapper `start_xcom_tx.ps1` (recommended) or run via `pwsh`:
+
+    ```powershell
+
+    powershell.exe -ExecutionPolicy Bypass -File "start_xcom_tx.ps1" -Ip <your-working-ip>
     ```
+
+   Alternative (use PowerShell Core from other shells):
+
+    ```bash
+    # from Git Bash, WSL, macOS, etc. if pwsh is installed
+    pwsh -NoProfile -File ./host-ui-tx/start_xcom_tx.ps1 -Ip <your-working-ip>
+    ```
+
+   To stop the services:
+    ```bash
+    # on Mac/Linux
+    ./start_xcom_tx.sh stop
+
+    # on Windows PowerShell
+    .\start_xcom_tx.ps1 -Stop
+    ```
+
     NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time. 
 
 4. Open http://localhost:8000 in your browser to view
@@ -180,6 +213,12 @@ docker ps
 
 # Receiving UI
 
+## RX LAPTOP: Establishing FPGA/Adafruit connection
+
+Run this script to open a port to connect:
+```bash
+    tstft232py.py
+```
 ### RX Set-Up
 
 1. Cd into the **host-ui-rx** folder: 
@@ -199,29 +238,48 @@ docker ps
     ```
 3. Run the `start_xcom_rx.sh` script to begin building the receiver:
 
-    ```bash
-    `` # Start and target an FPGA at a given IP:
-    FPGA_IP=169.254.100.10 start_xcom_rx.sh
-    `` # Start with FPGA and custom port and LSB order:
-    FPGA_IP=169.254.100.10 FPGA_PORT=6001 FPGA_BITPACKED=1 FPGA_BITORDER=lsb start_xcom_rx.sh
+    macOS / Linux (bash / zsh)
 
-    ```
-    To stop:
     ```bash
-    ./start_xcom_rx.sh stop
+    FPGA_IP=<your-working-ip> ./start_xcom_rx.sh
     ```
-    NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time. 
+
+   Windows (PowerShell)
+
+    If you're on Windows use the PowerShell wrapper `start_xcom_rx.ps1` (recommended) or run via `pwsh`:
+
+    ```powershell
+
+    powershell.exe -ExecutionPolicy Bypass -File "start_xcom_rx.ps1" -Ip <your-working-ip>
+    ```
+
+   Alternative (use PowerShell Core from other shells):
+
+    ```bash
+    # from Git Bash, WSL, macOS, etc. if pwsh is installed
+    pwsh -NoProfile -File ./host-ui-tx/start_xcom_tx.ps1 -Ip <your-working-ip>
+    ```
+
+   To stop the services:
+    ```bash
+    # on Mac/Linux
+    ./start_xcom_rx.sh stop
+
+    # on Windows PowerShell
+    .\start_xcom_rx.ps1 -Stop
+    ```
+
+    NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time.
     
 4. Open http://localhost:8000 in your browser to view
 
-    Stuff on how to select a file and send it yada yada
 
 ### Receiving Your Data
 
-1. Ensure the FPGA is connected to the RX laptop:
+1. Ensure the FPGA to Adafruit is connected to the RX laptop:
 2. Ensure data has been sent from the TX laptop:
 3. Receive Data:
-    Click the "Open" 
+    Click the "Open" button to view the file
 
 # Physical Design
 
