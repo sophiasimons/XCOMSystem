@@ -5,6 +5,21 @@ set -e  # Exit on any error
 if [ "$1" = "stop" ]; then
     echo "Stopping XCOM RX System..."
     docker compose down -v --remove-orphans >/dev/null 2>&1
+    # Kill host helper processes if they were started
+    if [ -f ./ftdi_poster.pid ]; then
+        pid=$(cat ./ftdi_poster.pid)
+        echo "Stopping FTDI poster (pid $pid)"
+        kill "$pid" >/dev/null 2>&1 || true
+        rm -f ./ftdi_poster.pid
+    fi
+    if [ -f ./adafruit_forward.pid ]; then
+        pid=$(cat ./adafruit_forward.pid)
+        echo "Stopping Adafruit forward (pid $pid)"
+        kill "$pid" >/dev/null 2>&1 || true
+        rm -f ./adafruit_forward.pid
+    fi
+    # remove logs if desired (keep for debugging)
+    # rm -f ./ftdi_poster.log ./adafruit_forward.log
     exit 0
 fi
 
@@ -34,34 +49,15 @@ echo "Cleaning up existing containers..."
 docker compose down --remove-orphans >/dev/null 2>&1 || true
 
 
-# detect FPGA board (prefer FPGA_IP env if provided)
-FPGA_CONNECTED=0
-if [ -n "$FPGA_IP" ]; then
-    echo "Checking for FPGA at $FPGA_IP..."
-    if ping -c 1 -W 1 "$FPGA_IP" >/dev/null 2>&1; then
-        echo "Found FPGA at $FPGA_IP"
-        FPGA_CONNECTED=1
-        export FPGA_IP
-    else
-        echo "FPGA at $FPGA_IP not reachable"
-    fi
-else
-    echo "FPGA_IP not set; starting without FPGA connection. To enable, set FPGA_IP environment variable."
-fi
-
-# Build BRIDGE_ARGS so the container will start the bridge with FPGA listener when present.
-# If an FPGA was detected, include --fpga-port and optional flags; otherwise use defaults.
+# Build BRIDGE_ARGS so the container will start the bridge.
+# By default we do not require any Adafruit network configuration because
+# the recommended mode is USB/FTDI. If you do want the bridge to listen for
+# an Adafruit TCP client, set ADAFRUIT_PORT before running this script.
 BRIDGE_ARGS="--ws-port 8766 --web-port 8001 --host 0.0.0.0"
-if [ "$FPGA_CONNECTED" -eq 1 ]; then
-    : "${FPGA_PORT:=5001}"
-    : "${FPGA_BITPACKED:=0}"
-    : "${FPGA_BITORDER:=msb}"
-    BRIDGE_ARGS="$BRIDGE_ARGS --fpga-port $FPGA_PORT"
-    if [ "$FPGA_BITPACKED" != "0" ]; then
-        BRIDGE_ARGS="$BRIDGE_ARGS --fpga-bitpacked"
-    fi
-    BRIDGE_ARGS="$BRIDGE_ARGS --fpga-bitorder $FPGA_BITORDER"
-    export FPGA_PORT FPGA_BITPACKED FPGA_BITORDER
+# If user explicitly set ADAFRUIT_PORT, pass it through so the bridge listens
+if [ -n "$ADAFRUIT_PORT" ]; then
+    BRIDGE_ARGS="$BRIDGE_ARGS --adafruit-port $ADAFRUIT_PORT"
+    export ADAFRUIT_PORT
 fi
 export BRIDGE_ARGS
 
@@ -76,6 +72,21 @@ if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
     echo "❌ Error: Failed to start services"
     docker compose logs --tail 10 || true
     exit 1
+fi
+
+# If an FTDI device and Python bindings are present on the host, start the FTDI poster
+# which will read framed files from the FT232H and notify the bridge via HTTP.
+echo "Checking for FTDI (ftd2xx) support on the host..."
+if python3 -c "import ftd2xx" >/dev/null 2>&1; then
+    echo "Found ftd2xx Python binding. Starting host FTDI poster..."
+    # Start in background, log to file. Use nohup so it survives if terminal closes.
+    nohup python3 ./bridge/ftdi_poster.py ${FTDI_INDEX:-2} > ./ftdi_poster.log 2>&1 &
+    echo $! > ./ftdi_poster.pid
+    sleep 0.5
+    echo "FTDI poster started (log: ./ftdi_poster.log, pid: $(cat ./ftdi_poster.pid))"
+else
+    echo "ftd2xx Python binding not found on host; skipping FTDI poster."
+    echo "If you want FTDI integration, install ftd2xx on the host and re-run this script."
 fi
 
 # Show success message

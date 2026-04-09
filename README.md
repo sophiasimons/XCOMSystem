@@ -92,9 +92,65 @@ Alternatively, to download as a ZIP file:
 ### Python Dependencies
 Install the required Python packages:
 ```bash
-pip install websockets pyserial
+# Install dependencies used by the bridge and host-side helpers.
+# The repository includes requirements files for the RX bridge. Prefer
+# installing from those so package versions stay consistent.
+
+# For the RX bridge and host helpers (recommended):
+python3 -m pip install --user -r host-ui-rx/bridge/requirements.txt
+
+# For the TX bridge (if you plan to run the transmitter bridge locally):
+if [ -f host-ui-tx/bridge/requirements.txt ]; then
+    python3 -m pip install --user -r host-ui-tx/bridge/requirements.txt
+else
+    # fallback: common packages used across the project
+    python3 -m pip install --user websockets pyserial requests
+fi
 ```
 
+### Host FTDI (Adafruit / FT232H) requirements
+
+- FTDI D2XX driver download and instructions:
+    https://ftdichip.com/drivers/d2xx-drivers/
+
+- macOS / Windows:
+    1. Download and install the D2XX driver package from FTDI's site.
+    2. Install the Python binding (may require a platform wheel):
+
+```bash
+# macOS example (after installing the FTDI driver):
+python3 -m pip install --user ftd2xx requests
+```
+
+- Linux:
+    - If using the FTDI-provided D2XX driver, follow the FTDI Linux instructions
+        linked above. Alternately, many Linux setups use libftdi/pyftdi, but the
+        `ftdi_poster.py` expects the `ftd2xx` package unless you adapt it.
+
+Notes:
+- The host-side `ftdi_poster.py` is intended to run on the host (outside the
+    container) to avoid driver and device access issues inside Docker. It reads
+    framed files from the FTDI device and writes them to `received_files/`, then
+    posts a notification to the bridge at `http://127.0.0.1:8001/api/notify_new_file`.
+- If you cannot install `ftd2xx`, you can still test the system by placing
+    files into `received_files/` and POSTing to the notify endpoint (see below).
+
+Example: run the poster (device index may vary):
+
+```bash
+python3 host-ui-rx/bridge/ftdi_poster.py 2
+```
+
+Manual notify test (without FTDI):
+
+```bash
+# create a file into the received_files folder and notify the bridge
+mkdir -p received_files
+echo hi > received_files/test.txt
+curl -X POST -H "Content-Type: application/json" \
+    -d '{"filename":"test.txt","mimetype":"text/plain"}' \
+    http://127.0.0.1:8001/api/notify_new_file
+```
 ### Verifying Installation
 Run these commands to ensure all required software is properly installed:
 ```bash
@@ -213,35 +269,34 @@ docker ps
 
 # Receiving UI
 
-## RX LAPTOP: Establishing FPGA/Adafruit connection
+## RX LAPTOP: Connect Adafruit (USB/FTDI) and Start Receiver
 
-Run this script to open a port to connect:
-```bash
-    tstft232py.py
-```
 ### RX Set-Up
 
-1. Cd into the **host-ui-rx** folder: 
+1. Cd into the **host-ui-rx** folder:
     ```bash
     cd host-ui-rx
     ```
 
 2. Start Docker based on your OS:
 
-    **MacOS:** Open the app on your laptop, searching in Applications for "Docker"
-   
+    **MacOS:** Open Docker Desktop from Applications
+
     **Windows:** Start Docker Desktop from the Start Menu
 
     **Linux:** Run this command in your terminal:
-    ```bash   
+    ```bash
     sudo systemctl start docker
     ```
-3. Run the `start_xcom_rx.sh` script to begin building the receiver:
 
-    macOS / Linux (bash / zsh)
+3. Run the `start_xcom_rx.sh` script to build and start the receiver. The script will
+   automatically start the host FTDI poster if the `ftd2xx` Python binding is available
+   on the host. No environment variables are required for the USB (FTDI) workflow.
+
+   macOS / Linux (bash / zsh)
 
     ```bash
-    FPGA_IP=<your-working-ip> ./start_xcom_rx.sh
+    ./start_xcom_rx.sh
     ```
 
    Windows (PowerShell)
@@ -249,15 +304,7 @@ Run this script to open a port to connect:
     If you're on Windows use the PowerShell wrapper `start_xcom_rx.ps1` (recommended) or run via `pwsh`:
 
     ```powershell
-
-    powershell.exe -ExecutionPolicy Bypass -File "start_xcom_rx.ps1" -Ip <your-working-ip>
-    ```
-
-   Alternative (use PowerShell Core from other shells):
-
-    ```bash
-    # from Git Bash, WSL, macOS, etc. if pwsh is installed
-    pwsh -NoProfile -File ./host-ui-tx/start_xcom_tx.ps1 -Ip <your-working-ip>
+    powershell.exe -ExecutionPolicy Bypass -File "start_xcom_rx.ps1"
     ```
 
    To stop the services:
@@ -269,17 +316,18 @@ Run this script to open a port to connect:
     .\start_xcom_rx.ps1 -Stop
     ```
 
-    NOTE: You must stop the container running when you are finished using the XCOM system in order to smoothly restart the system at another time.
-    
-4. Open http://localhost:8000 in your browser to view
+   NOTE: You must stop the container when finished in order to smoothly restart later.
+
+4. Open the web UI at: http://localhost:8001
 
 
 ### Receiving Your Data
 
-1. Ensure the FPGA to Adafruit is connected to the RX laptop:
-2. Ensure data has been sent from the TX laptop:
-3. Receive Data:
-    Click the "Open" button to view the file
+1. Ensure the Adafruit/FPGA is connected to the RX laptop over USB (FTDI/FT232H).
+2. Ensure data has been sent from the TX laptop.
+3. The host-side `ftdi_poster.py` will capture frames from the FTDI device and
+   post notifications to the bridge so files appear in the Received files list.
+4. Click the "Open" button in the UI to view or download received files. You can also view received files in the `host-ui-rx/received_files` folder.
 
 # Physical Design
 

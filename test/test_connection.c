@@ -139,7 +139,7 @@ bool send_test_data(const char *ip_address, int port) {
     bool success = false;
     
     // Open and read the test text file
-    const char *filename = "txtFile.txt";
+    const char *filename = "10mb_file.txt";
     file = fopen(filename, "rb");
     if (!file) {
         printf("  ✗ Failed to open %s\n", filename);

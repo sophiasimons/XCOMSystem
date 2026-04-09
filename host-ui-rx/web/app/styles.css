@@ -94,9 +94,10 @@ main {
 }
 
 .content-center {
-  max-width: 500px;
+  /* Wider layout for desktop use */
+  max-width: 1000px;
   margin: 0 auto;
-  text-align: center;
+  text-align: left; /* left-align text for readability on desktop */
   padding: 20px;
 }
 
@@ -120,6 +121,7 @@ h3 {
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   margin-top: 20px;
+  min-width: 700px; /* ensure UI elements have room on desktop */
 }
 
 .modal {
@@ -230,13 +232,14 @@ h3 {
 
 .file-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--gray-light);
   background: white;
   border-radius: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  gap: 12px;
 }
 
 .file-meta {
@@ -261,6 +264,27 @@ h3 {
   gap: 8px;
   flex: 0 0 auto;
   align-self: flex-start;
+  flex-wrap: wrap; /* allow actions to wrap to next line if necessary */
+}
+
+.file-type-select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-light);
+  background: white;
+  font-size: 13px;
+  color: var(--gray-dark);
+}
+
+.ber-results {
+  margin-top: 10px;
+  padding: 8px;
+  background: #fcfcff;
+  border: 1px solid #e6eef8;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--gray-dark);
 }
 
 .btn {
@@ -280,19 +304,15 @@ h3 {
 
 .file-path {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--gray-dark);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
-  /* Prefer a single-line path to avoid clutter; allow horizontal scrolling if necessary */
-  white-space: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  /* show full path; allow horizontal scroll instead of truncating */
-  /* no text-overflow ellipsis */
-  overflow-wrap: normal;
-  word-break: normal;
+  /* Allow wrapping on desktop so long file names don't overlap other UI elements */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   background: #fbfbfb;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid var(--gray-light);
   width: 100%;

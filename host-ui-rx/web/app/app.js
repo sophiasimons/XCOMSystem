@@ -128,6 +128,16 @@
               showToast('Received file but failed to process');
             }
           }
+          else if (response.type === 'ber_result') {
+            try {
+              // Display BER result in the UI associated with the filename
+              const fname = response.filename;
+              showBerResult(fname, response);
+              showToast(`BER complete: ${fname}`);
+            } catch (e) {
+              console.error('Error handling ber_result:', e);
+            }
+          }
         } catch (e) {
           console.error('Failed to parse message:', e);
         }
@@ -254,6 +264,78 @@
     });
 
   actions.appendChild(open);
+
+  // File type selector (user can hint the expected type, e.g. .bin for BER tests)
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'file-type-select';
+  const typeOptions = [
+    {v: '', t: 'Auto (detect)'},
+    {v: 'application/octet-stream', t: '.bin (binary)'},
+    {v: 'text/plain', t: '.txt (text)'},
+    {v: 'image/jpeg', t: '.jpg (jpeg)'}
+  ];
+  typeOptions.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.v;
+    opt.textContent = o.t;
+    typeSelect.appendChild(opt);
+  });
+  // store selection on the item for later use
+  typeSelect.addEventListener('change', () => {
+    item.dataset.mimetype = typeSelect.value || '';
+  });
+  actions.appendChild(typeSelect);
+
+  // Compute BER button: upload a reference file and ask server to compute bit errors
+  const berBtn = document.createElement('button');
+  berBtn.className = 'btn secondary';
+  berBtn.textContent = 'Compute BER';
+  berBtn.addEventListener('click', () => {
+    // create a hidden file input to select reference file
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    input.style.display = 'none';
+    input.addEventListener('change', async () => {
+      if (!input.files || input.files.length === 0) return;
+      const refFile = input.files[0];
+      // Client-side upload size guard: must be below UPLOAD_LIMIT
+      const UPLOAD_LIMIT = 200 * 1024 * 1024; // 200 MB
+      if (refFile.size > UPLOAD_LIMIT) {
+        showToast('Reference file too large (max 200 MB).');
+        document.body.removeChild(input);
+        return;
+      }
+      const form = new FormData();
+      form.append('reference', refFile, refFile.name);
+      form.append('filename', filename);
+      showToast('Computing BER...');
+      try {
+        const resp = await fetch('/api/compute_ber', { method: 'POST', body: form });
+        if (!resp.ok) {
+          showToast('BER computation failed: ' + resp.statusText);
+          return;
+        }
+        const res = await resp.json();
+        // Render results in UI (the server will also push via WebSocket)
+        try {
+          showBerResult(res.filename, res);
+        } catch (e) {
+          console.error('Failed to render BER result locally:', e);
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('BER request failed');
+      } finally {
+        // cleanup
+        document.body.removeChild(input);
+      }
+    });
+    document.body.appendChild(input);
+    input.click();
+  });
+  actions.appendChild(berBtn);
+
   actions.appendChild(pathToggle);
   // Insert elements so the path display appears under the file meta (name + size)
   // Put the path display inside the meta column so it sits below name/size
@@ -266,6 +348,36 @@
     // Prepend so newest appear first
     if (list.firstChild) list.insertBefore(item, list.firstChild);
     else list.appendChild(item);
+  }
+
+  // Render BER result in the UI under the corresponding file item
+  function showBerResult(filename, res) {
+    const list = document.getElementById('fileList');
+    if (!list) return;
+    const item = Array.from(list.querySelectorAll('[data-filename]')).find(el => el.getAttribute('data-filename') === filename);
+    if (!item) {
+      // If the file is not present, add it to the list
+      addReceivedFile(filename, res.bytes_compared || 0);
+    }
+    const target = item || Array.from(list.querySelectorAll('[data-filename]')).find(el => el.getAttribute('data-filename') === filename);
+    if (!target) return;
+
+    // Remove existing ber-results if any
+    let existing = target.querySelector('.ber-results');
+    if (existing) existing.remove();
+
+    const box = document.createElement('div');
+    box.className = 'ber-results';
+    const percent = ((res.bit_error_rate || 0) * 100).toFixed(6);
+    box.innerHTML = `<strong>BER:</strong> ${res.bit_error_rate} (${percent}%)<br>` +
+                    `<strong>Bytes compared:</strong> ${res.bytes_compared || 0} &nbsp; ` +
+                    `<strong>Differing bytes:</strong> ${res.differing_bytes || 0}<br>` +
+                    `<strong>Bits compared:</strong> ${res.bits_compared || 0} &nbsp; ` +
+                    `<strong>Differing bits:</strong> ${res.differing_bits || 0}`;
+
+    // Insert the box into the meta column so it appears under name/size
+    const meta = target.querySelector('.file-meta');
+    if (meta) meta.appendChild(box);
   }
 
   // Host-side received_files path (file://) if provided by bridge

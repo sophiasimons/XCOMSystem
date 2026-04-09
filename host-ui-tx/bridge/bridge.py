@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import socket
+import mimetypes
 from pathlib import Path
 from aiohttp import web
 from websockets import serve
@@ -104,9 +105,9 @@ class EthernetRelay:
             connect_time_ms = (asyncio.get_event_loop().time() - connect_start) * 1000
             LOG.info("TCP connected in %.1f ms", connect_time_ms)
             
-            # Streamed framing for large files: send START_FLAG + 4-byte size
-            # header, then send the file in chunks. Receiver should read exactly
-            # `file_size` bytes and not expect an END flag.
+            # Framed protocol: send START_FLAG + 4-byte header_len + header_json + payload
+            # header_json (utf-8) must include at least: { "size": <payload_size>, "filename": "...", "mimetype": "..." }
+            # This matches the RX bridge expectations so it can reconstruct filename and mimetype.
             START_FLAG = b"\xAA\xBB\xCC\xDD"
             CHUNK_SIZE = 64 * 1024  # 64 KiB
             # Try to disable Nagle's algorithm to reduce latency for the first
@@ -119,23 +120,38 @@ class EthernetRelay:
                 except Exception:
                     LOG.debug("Could not set TCP_NODELAY on socket")
 
+            # Build metadata header
+            guessed_mime, _ = mimetypes.guess_type(filename)
+            metadata = {
+                "size": file_size,
+                "filename": filename,
+                "mimetype": guessed_mime,
+            }
+            header_json = json.dumps(metadata).encode('utf-8')
+            header_len = len(header_json)
+
             # To minimize delay between the START_FLAG and payload, write the
-            # START_FLAG + size header + the first chunk in a single write and
-            # then await drain once. This ensures the receiver sees the header
+            # START_FLAG + header_len + header_json + the first chunk in a single write
+            # and then await drain once. This ensures the receiver sees the header
             # and immediate data with minimal scheduling overhead.
             send_start = asyncio.get_event_loop().time()
             offset = 0
             if file_size > 0:
                 first_end = min(CHUNK_SIZE, file_size)
                 first_chunk = file_data[0:first_end]
-                writer.write(START_FLAG + file_size.to_bytes(4, byteorder='little') + first_chunk)
+                writer.write(
+                    START_FLAG
+                    + header_len.to_bytes(4, byteorder='little')
+                    + header_json
+                    + first_chunk
+                )
                 offset = first_end
             else:
-                # empty file: just send header
-                writer.write(START_FLAG + file_size.to_bytes(4, byteorder='little'))
+                # empty file: send header only
+                writer.write(START_FLAG + header_len.to_bytes(4, byteorder='little') + header_json)
 
             await writer.drain()
-            LOG.info("Start flag, size header and first chunk sent (first %d bytes)", offset)
+            LOG.info("Start flag, header and first chunk sent (first %d bytes)", offset)
 
             # Stream remaining file in chunks
             while offset < file_size:

@@ -51,31 +51,31 @@ try {
 # Write-Info "Cleaning up existing containers..."
 try { & docker compose down --remove-orphans >$null 2>&1 } catch { }
 
-# Detect FPGA board (prefer FPGA_IP env if provided)
-$FPGA_CONNECTED = $false
-if ($env:FPGA_IP) {
-    # Write-Info "Checking for FPGA at $env:FPGA_IP..."
+# Detect Adafruit board (prefer ADAFRUIT_IP env if provided)
+$ADAFRUIT_CONNECTED = $false
+if ($env:ADAFRUIT_IP) {
+    # Write-Info "Checking for Adafruit at $env:ADAFRUIT_IP..."
     try {
-        if (Test-Connection -Quiet -Count 1 -ComputerName $env:FPGA_IP -TimeoutSeconds 1) {
-            # Write-Info "Found FPGA at $env:FPGA_IP"
-            $FPGA_CONNECTED = $true
+        if (Test-Connection -Quiet -Count 1 -ComputerName $env:ADAFRUIT_IP -TimeoutSeconds 1) {
+            # Write-Info "Found Adafruit at $env:ADAFRUIT_IP"
+            $ADAFRUIT_CONNECTED = $true
         } else {
-            # Write-Info "FPGA at $env:FPGA_IP not reachable"
+            # Write-Info "Adafruit at $env:ADAFRUIT_IP not reachable"
         }
     } catch { }
 } else {
-    # Write-Info "FPGA_IP not set; starting without FPGA connection. To enable, set `\$env:FPGA_IP`."
+    # Write-Info "ADAFRUIT_IP not set; starting without Adafruit connection. To enable, set `\$env:ADAFRUIT_IP`."
 }
 
 # Build BRIDGE_ARGS (will be exported into the compose environment)
 $BRIDGE_ARGS = "--ws-port 8766 --web-port 8001 --host 0.0.0.0"
-if ($FPGA_CONNECTED) {
-    if (-not $env:FPGA_PORT) { $env:FPGA_PORT = '5001' }
-    if (-not $env:FPGA_BITPACKED) { $env:FPGA_BITPACKED = '0' }
-    if (-not $env:FPGA_BITORDER) { $env:FPGA_BITORDER = 'msb' }
-    $BRIDGE_ARGS = "$BRIDGE_ARGS --fpga-port $env:FPGA_PORT"
-    if ($env:FPGA_BITPACKED -ne '0') { $BRIDGE_ARGS = "$BRIDGE_ARGS --fpga-bitpacked" }
-    $BRIDGE_ARGS = "$BRIDGE_ARGS --fpga-bitorder $env:FPGA_BITORDER"
+if ($ADAFRUIT_CONNECTED) {
+    if (-not $env:ADAFRUIT_PORT) { $env:ADAFRUIT_PORT = '5001' }
+    if (-not $env:ADAFRUIT_BITPACKED) { $env:ADAFRUIT_BITPACKED = '0' }
+    if (-not $env:ADAFRUIT_BITORDER) { $env:ADAFRUIT_BITORDER = 'msb' }
+    $BRIDGE_ARGS = "$BRIDGE_ARGS --adafruit-port $env:ADAFRUIT_PORT"
+    if ($env:ADAFRUIT_BITPACKED -ne '0') { $BRIDGE_ARGS = "$BRIDGE_ARGS --adafruit-bitpacked" }
+    $BRIDGE_ARGS = "$BRIDGE_ARGS --adafruit-bitorder $env:ADAFRUIT_BITORDER"
 }
 $env:BRIDGE_ARGS = $BRIDGE_ARGS
 
