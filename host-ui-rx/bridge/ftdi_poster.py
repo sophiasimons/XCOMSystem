@@ -33,12 +33,66 @@ except Exception as e:
 
 BRIDGE_NOTIFY_URL = "http://127.0.0.1:8001/api/notify_new_file"
 
-
-def main(device_index=2):
+def get_ftdi_device(target_serial=None, target_desc=None):
+    """
+    Scans for FTDI devices and returns an open device handle.
+    If target_serial or target_desc is provided, it searches for a match.
+    Otherwise, it defaults to the first available device (index 0).
+    """
     try:
-        dev = ftd.open(device_index)
+        num_devices = ftd.createDeviceInfoList()
     except Exception as e:
-        print(f"[ftd_poster] Failed to open FTDI device index {device_index}: {e}")
+        print(f"[ftd_scanner] Error listing FTDI devices: {e}")
+        return None
+
+    if num_devices == 0:
+        print("[ftd_scanner] No FTDI devices detected.")
+        return None
+
+    print(f"[ftd_scanner] Found {num_devices} FTDI device(s).")
+
+    for i in range(num_devices):
+        # getDeviceInfoDetail returns a dictionary
+        detail = ftd.getDeviceInfoDetail(i)
+        
+        # Safely extract the raw values using dictionary keys
+        raw_serial = detail.get('serial', b'')
+        raw_desc = detail.get('description', b'')
+        
+        # Decode byte strings to standard strings (handling both bytes and str returns)
+        serial = raw_serial.decode('utf-8', errors='ignore') if isinstance(raw_serial, bytes) else str(raw_serial)
+        desc = raw_desc.decode('utf-8', errors='ignore') if isinstance(raw_desc, bytes) else str(raw_desc)
+        
+        print(f"  -> Index {i}: Serial='{serial}', Description='{desc}'")
+
+        # Check for matches if target criteria are provided
+        if target_serial and target_serial == serial:
+            print(f"[ftd_scanner] Match found by Serial Number '{serial}' at index {i}.")
+            return ftd.open(i)
+        
+        if target_desc and target_desc in desc:
+            print(f"[ftd_scanner] Match found by Description '{desc}' at index {i}.")
+            return ftd.open(i)
+
+    # If no specific target was requested, default to the first device
+    if not target_serial and not target_desc:
+        print("[ftd_scanner] No specific target requested. Defaulting to index 0.")
+        return ftd.open(0)
+
+    print("[ftd_scanner] Target device not found among connected devices.")
+    return None
+
+def main():
+    
+    # Define what you are looking for (set to None to just grab the first one)
+    # Example: TARGET_SERIAL = "FTX12345" or TARGET_DESC = "USB Serial Converter"
+    TARGET_SERIAL = "FTB3OWTT" 
+    TARGET_DESC = "USB <-> Serial Converter"
+
+    dev = get_ftdi_device(target_serial=TARGET_SERIAL, target_desc=TARGET_DESC)
+    
+    if dev is None:
+        print("[ftd_poster] Failed to obtain a valid FTDI device. Exiting.")
         sys.exit(1)
 
     try:
@@ -143,4 +197,4 @@ if __name__ == '__main__':
             idx = int(sys.argv[1])
         except Exception:
             pass
-    main(idx)
+    main()
