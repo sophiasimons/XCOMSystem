@@ -267,14 +267,6 @@ h3 {
   flex-wrap: wrap; /* allow actions to wrap to next line if necessary */
 }
 
-.file-type-select {
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--gray-light);
-  background: white;
-  font-size: 13px;
-  color: var(--gray-dark);
-}
 
 .ber-results {
   margin-top: 10px;

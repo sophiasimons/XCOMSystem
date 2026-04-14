@@ -265,26 +265,7 @@
 
   actions.appendChild(open);
 
-  // File type selector (user can hint the expected type, e.g. .bin for BER tests)
-  const typeSelect = document.createElement('select');
-  typeSelect.className = 'file-type-select';
-  const typeOptions = [
-    {v: '', t: 'Auto (detect)'},
-    {v: 'application/octet-stream', t: '.bin (binary)'},
-    {v: 'text/plain', t: '.txt (text)'},
-    {v: 'image/jpeg', t: '.jpg (jpeg)'}
-  ];
-  typeOptions.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = o.v;
-    opt.textContent = o.t;
-    typeSelect.appendChild(opt);
-  });
-  // store selection on the item for later use
-  typeSelect.addEventListener('change', () => {
-    item.dataset.mimetype = typeSelect.value || '';
-  });
-  actions.appendChild(typeSelect);
+  // (file type selector removed) User can no longer manually select a file type here.
 
   // Compute BER button: upload a reference file and ask server to compute bit errors
   const berBtn = document.createElement('button');
