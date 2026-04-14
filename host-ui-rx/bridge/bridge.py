@@ -124,7 +124,7 @@ def get_ftdi_device(target_serial=None, target_desc=None, fallback_index=2):
     if not target_serial and not target_desc:
         print(f"[ftd_scanner] No specific target requested. Defaulting to index {fallback_index}.")
         try:
-            return ftd.open(fallback_index)
+            return ftd.open(0)
         except Exception as e:
             print(f"[ftd_scanner] Failed to open fallback index {fallback_index}: {e}")
             return None
@@ -215,7 +215,6 @@ def ftd_blocking_reader(loop, state: BridgeState, target_serial=None, target_des
                 mimetype = metadata.get('mimetype') if isinstance(metadata.get('mimetype'), str) else None
 
                 try:
-                    # FORCE it to create the folder relative to this Python script
                     base_dir = Path(__file__).parent
                     local_save = base_dir / 'received_files'
                     local_save.mkdir(parents=True, exist_ok=True)
@@ -336,7 +335,6 @@ async def start_web_server(host, port, state: BridgeState):
             return web.FileResponse(web_dir / 'index.html')
         app.router.add_get('/', index_handler)
 
-        # Force the web server to look in the exact same directory the FTDI reader is saving to
         base_dir = Path(__file__).parent
         files_dir = base_dir / 'received_files'
         files_dir.mkdir(parents=True, exist_ok=True)
@@ -368,65 +366,52 @@ async def start_web_server(host, port, state: BridgeState):
                 pass
             return resp
 
-        app.router.add_get('/api/files', api_files)
-        app.router.add_get('/files/{filename}', serve_file)
-        
+        # === THE FIXED BER COMPUTATION HANDLER ===
         async def api_compute_ber(request):
+            try:
+                post = await request.post()
+            except ValueError:
+                raise web.HTTPBadRequest(text='invalid form data')
+
             q_filename = request.query.get('filename')
-            post = await request.post()
-            filename = q_filename or post.get('filename')
-            if not filename:
-                raise web.HTTPBadRequest(text='missing filename parameter (query or form)')
+            raw_filename = q_filename or post.get('filename')
+            
+            if hasattr(raw_filename, 'filename'):
+                filename = raw_filename.filename
+            else:
+                filename = raw_filename
+
+            if not filename or not isinstance(filename, str):
+                raise web.HTTPBadRequest(text='missing or invalid filename parameter')
 
             if '..' in filename or filename.startswith('/'):
                 raise web.HTTPForbidden()
 
             filepath = files_dir / filename
             if not filepath.exists() or not filepath.is_file():
-                raise web.HTTPNotFound()
+                raise web.HTTPNotFound(text=f'File not found: {filename}')
 
-            try:
-                mp = await request.multipart()
-            except Exception:
-                raise web.HTTPBadRequest(text='expected multipart/form-data')
-
-            ref_part = None
-            async for part in mp:
-                if part.name == 'reference' and part.filename:
-                    ref_part = part
-                    break
-
-            if ref_part is None:
+            ref_field = post.get('reference')
+            
+            if ref_field is None or not hasattr(ref_field, 'file'):
                 for k, v in post.items():
-                    if hasattr(v, 'filename'):
+                    if hasattr(v, 'file'):
                         ref_field = v
                         break
                 else:
                     raise web.HTTPBadRequest(text='missing reference file upload')
 
-                tmp = tempfile.NamedTemporaryFile(delete=False)
-                try:
-                    while True:
-                        chunk = ref_field.file.read(64 * 1024)
-                        if not chunk:
-                            break
-                        tmp.write(chunk)
-                    tmp.flush()
-                    tmp_path = tmp.name
-                finally:
-                    tmp.close()
-            else:
-                tmp = tempfile.NamedTemporaryFile(delete=False)
-                try:
-                    while True:
-                        chunk = await ref_part.read_chunk(size=64 * 1024)
-                        if not chunk:
-                            break
-                        tmp.write(chunk)
-                    tmp.flush()
-                    tmp_path = tmp.name
-                finally:
-                    tmp.close()
+            tmp = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                while True:
+                    chunk = ref_field.file.read(64 * 1024)
+                    if not chunk:
+                        break
+                    tmp.write(chunk)
+                tmp.flush()
+                tmp_path = tmp.name
+            finally:
+                tmp.close()
 
             def compare_files(received_path, reference_path, chunk_size=64 * 1024):
                 differing_bytes = 0
@@ -486,9 +471,14 @@ async def start_web_server(host, port, state: BridgeState):
                 LOG.exception('Failed to notify websocket clients about BER result')
 
             return web.json_response(result)
+        # =========================================
 
+        # Routing connections registered inside the valid scope block
+        app.router.add_get('/api/files', api_files)
+        app.router.add_get('/files/{filename}', serve_file)
         app.router.add_post('/api/compute_ber', api_compute_ber)
         app.router.add_static('/', web_dir)
+        
     else:
         LOG.warning(f"Web directory not found at {web_dir}")
     
@@ -522,7 +512,7 @@ async def main():
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     loop.run_in_executor(executor, ftd_blocking_reader, loop, state, args.ftdi_serial, args.ftdi_desc, args.ftdi_index)
 
-    # Start WebSocket server (with library version compatibility fix)
+    # Start WebSocket server
     async def handler(ws, *ws_args):
         path = ws_args[0] if ws_args else getattr(getattr(ws, "request", None), "path", "/")
         await ws_handler(ws, path, state)
