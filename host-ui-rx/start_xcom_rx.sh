@@ -4,7 +4,15 @@ set -e  # Exit on any error
 # Handle stop command
 if [ "$1" = "stop" ]; then
     echo "Stopping XCOM RX System..."
-    docker compose down -v --remove-orphans >/dev/null 2>&1
+    # Try to stop local bridge if running
+    if [ -f ./bridge.pid ]; then
+        pid=$(cat ./bridge.pid)
+        echo "Stopping local bridge (pid $pid)"
+        kill "$pid" >/dev/null 2>&1 || true
+        rm -f ./bridge.pid
+    fi
+    # If Docker was used, stop containers
+    docker compose down -v --remove-orphans >/dev/null 2>&1 || true
     # Kill host helper processes if they were started
     if [ -f ./ftdi_poster.pid ]; then
         pid=$(cat ./ftdi_poster.pid)
@@ -27,75 +35,75 @@ cd "$(dirname "$0")"
 
 echo "Starting XCOM RX System..."
 
-# Check if Docker is available and running
-if ! docker info >/dev/null 2>&1; then
-    echo ""
-    echo "❌ Docker is not running"
-    echo ""
-    echo "To start Docker:"
-    echo "  macOS:   Open Docker Desktop from Applications"
-    echo "  Linux:   sudo systemctl start docker"
-    echo "  Windows: Start Docker Desktop from Start Menu"
-    echo ""
-    echo "Then run this script again: ./start_xcom_rx.sh"
-    echo ""
-    exit 1
-fi
+# By default run the bridge locally (not in Docker) so native FTDI drivers
+# and direct USB access work. To run with Docker instead set USE_DOCKER=1.
+if [ "${USE_DOCKER:-0}" != "1" ]; then
+    echo "Running bridge locally (not using Docker)."
 
-echo "✓ Docker is running"
+    # Build BRIDGE_ARGS similar to the container case
+    BRIDGE_ARGS="--ws-port 8766 --web-port 8001 --host 0.0.0.0"
+    if [ -n "$ADAFRUIT_PORT" ]; then
+        BRIDGE_ARGS="$BRIDGE_ARGS --adafruit-port $ADAFRUIT_PORT"
+        export ADAFRUIT_PORT
+    fi
+    export BRIDGE_ARGS
 
-# Clean up any existing containers
-echo "Cleaning up existing containers..."
-docker compose down --remove-orphans >/dev/null 2>&1 || true
+    # Ensure host-side received_files exists and export path
+    mkdir -p "$(pwd)/received_files"
+    export HOST_RECEIVED_DIR="$(pwd)/received_files"
 
+    # Ensure Python venv and dependencies
+    VENV_DIR=".venv"
+    PYTHON_BIN="python3"
+    if ! command -v $PYTHON_BIN >/dev/null 2>&1; then
+        echo "❌ python3 not found. Please install Python 3.8+ and re-run this script."
+        exit 1
+    fi
 
-# Build BRIDGE_ARGS so the container will start the bridge.
-# By default we do not require any Adafruit network configuration because
-# the recommended mode is USB/FTDI. If you do want the bridge to listen for
-# an Adafruit TCP client, set ADAFRUIT_PORT before running this script.
-BRIDGE_ARGS="--ws-port 8766 --web-port 8001 --host 0.0.0.0"
-# If user explicitly set ADAFRUIT_PORT, pass it through so the bridge listens
-if [ -n "$ADAFRUIT_PORT" ]; then
-    BRIDGE_ARGS="$BRIDGE_ARGS --adafruit-port $ADAFRUIT_PORT"
-    export ADAFRUIT_PORT
-fi
-export BRIDGE_ARGS
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Creating virtualenv in $VENV_DIR..."
+        $PYTHON_BIN -m venv "$VENV_DIR"
+    fi
 
-# Ensure host-side received_files exists and export path so container knows host path
-mkdir -p "$(pwd)/received_files"
-export HOST_RECEIVED_DIR="$(pwd)/received_files"
+    echo "Activating virtualenv and installing Python dependencies..."
+    # Use pip from the venv so system packages aren't modified
+    "$VENV_DIR/bin/pip" install --upgrade pip >/dev/null 2>&1 || true
+    "$VENV_DIR/bin/pip" install -r requirements.txt || {
+        echo "Failed to install Python requirements. Please inspect the output above and install dependencies manually.";
+        exit 1;
+    }
 
-# Build and start services. If the user wants a custom STM32 host port mapping, they
-# can export STM32_PORT beforehand (e.g. STM32_PORT=5010 ./start_xcom_rx.sh).
-echo "Building and starting services..."
-if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
-    echo "❌ Error: Failed to start services"
-    docker compose logs --tail 10 || true
-    exit 1
-fi
+    # Quick checks for native FTDI driver availability
+    echo "Checking for FTDI native driver availability (ftd2xx)..."
+    if "$VENV_DIR/bin/python" -c "import ftd2xx" >/dev/null 2>&1; then
+        echo "ftd2xx Python binding available in venv. If using D2XX driver make sure libftd2xx is installed on the host."
+    else
+        echo "ftd2xx not importable in venv. You may still be able to use pyftdi (libusb) if libusb is installed."
+        echo "If you want D2XX (FTDI) support, install the D2XX driver from FTDI and then reinstall the 'ftd2xx' Python package into .venv."
+    fi
 
-# If an FTDI device and Python bindings are present on the host, start the FTDI poster
-# which will read framed files from the FT232H and notify the bridge via HTTP.
-echo "Checking for FTDI (ftd2xx) support on the host..."
-if python3 -c "import ftd2xx" >/dev/null 2>&1; then
-    echo "Found ftd2xx Python binding. Starting host FTDI poster..."
-    # Start in background, log to file. Use nohup so it survives if terminal closes.
-    nohup python3 ./bridge/ftdi_poster.py ${FTDI_INDEX:-2} > ./ftdi_poster.log 2>&1 &
-    echo $! > ./ftdi_poster.pid
-    sleep 0.5
-    echo "FTDI poster started (log: ./ftdi_poster.log, pid: $(cat ./ftdi_poster.pid))"
+    # Start the bridge locally
+    echo "Bridge started (pid: $(cat ./bridge.pid)). Web UI: http://localhost:8001"
+
+    # Optionally, if the user still wants the host-side poster (separate process that reads FTDI and POSTS)
+    if [ "${START_HOST_POSTER:-0}" = "1" ]; then
+        echo "Starting host ftdi_poster (poster will POST to bridge)..."
+        BRIDGE_NOTIFY_URL=http://localhost:8001/api/notify_new_file nohup "$VENV_DIR/bin/python" ./bridge/ftdi_poster.py ${FTDI_INDEX:-2} > ./ftdi_poster.log 2>&1 &
+        echo $! > ./ftdi_poster.pid
+        echo "FTDI poster started (log: ./ftdi_poster.log, pid: $(cat ./ftdi_poster.pid))"
+    fi
+
+    echo "To stop: ./start_xcom_rx.sh stop"
+    exit 0
 else
-    echo "ftd2xx Python binding not found on host; skipping FTDI poster."
-    echo "If you want FTDI integration, install ftd2xx on the host and re-run this script."
+    echo "USE_DOCKER=1 set; falling back to Docker compose startup."
+    echo "Cleaning up existing containers..."
+    docker compose down --remove-orphans >/dev/null 2>&1 || true
+
+    echo "Building and starting services via Docker Compose..."
+    if ! docker compose up --build -d --quiet-pull >/dev/null 2>&1; then
+        echo "❌ Error: Failed to start services via Docker Compose"
+        docker compose logs --tail 10 || true
+        exit 1
+    fi
 fi
-
-# Show success message
-echo "
-XCOM RX System is ready:
-
-   Web UI: http://localhost:8001
-
-   Commands:
-   - View logs:    docker compose logs -f
-   - Stop system:  ./start_xcom_rx.sh stop
-"
