@@ -6,7 +6,7 @@ ECE3906 Capstone project 2025-26
 
 - [Introduction](#introduction)
     - [Terms Used in this Documentation](#terms-used-in-this-documentation)
-- [Software Prerequisites/Set-Up](#section-1)
+- [Software Set-Up](#software-set-up)
     - [Cloning this Repository](#cloning-this-repository)
     - [Required Software](#required-software)
     - [Verifying Installation](#verifying-installation)
@@ -31,17 +31,10 @@ ECE3906 Capstone project 2025-26
 |      |            |
 
 
-# Software Prerequisites/Set-Up
+## Software Set-Up
 
-## Prerequisites:
+Before using the XCOM system, ensure you complete the following sections **on BOTH TX and RX laptops (unless otherwise stated, it is not needed)**:
 
-- **Docker installation:**
-    This might take a while but is a one-time installation.
-    Download: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-Before setting up the XCOM system, ensure you complete the following sections **on BOTH TX and RX laptops**:
-
-## Software Set-up:
 
 ### Cloning this Repository
 
@@ -77,9 +70,9 @@ Alternatively, to download as a ZIP file:
    - Usually comes with Python installation
 
 3. **Docker**
+   - Download: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
    - Check version: `docker --version`
    - Check Docker service: `docker info`
-
 
 4. **Docker Compose**
    - Check version: `docker-compose --version`
@@ -108,9 +101,9 @@ else
 fi
 ```
 
-### Host FTDI (Adafruit / FT232H) requirements
+### Host FTDI (Adafruit / FT232H) requirements (RECEIVING LAPTOP ONLY)
 
-- FTDI D2XX driver download and instructions:
+- FTDI D2XX driver download and instructions (find readme file with instructions in donwload):
     https://ftdichip.com/drivers/d2xx-drivers/
 
 - macOS / Windows:
@@ -120,6 +113,14 @@ fi
 ```bash
 # macOS example (after installing the FTDI driver):
 python3 -m pip install --user ftd2xx requests
+# Alternatively, to use libusb/pyftdi instead of D2XX (recommended on Linux/macOS
+# if you prefer open-source stack), first install libusb then install pyftdi:
+# macOS (Homebrew):
+#   brew install libusb
+#   python3 -m pip install --user pyftdi requests
+# Linux (Debian/Ubuntu):
+#   sudo apt-get install libusb-1.0-0-dev
+#   python3 -m pip install --user pyftdi requests
 ```
 
 - Linux:
@@ -128,29 +129,14 @@ python3 -m pip install --user ftd2xx requests
         `ftdi_poster.py` expects the `ftd2xx` package unless you adapt it.
 
 Notes:
-- The host-side `ftdi_poster.py` is intended to run on the host (outside the
-    container) to avoid driver and device access issues inside Docker. It reads
-    framed files from the FTDI device and writes them to `received_files/`, then
-    posts a notification to the bridge at `http://127.0.0.1:8001/api/notify_new_file`.
-- If you cannot install `ftd2xx`, you can still test the system by placing
-    files into `received_files/` and POSTing to the notify endpoint (see below).
+- The host-side `ftdi_poster.py` (or the bridge's integrated FTDI reader) is
+    intended to run on the host (outside of Docker) so it can access the system's
+    native USB stack and drivers. On macOS Docker runs inside a VM and USB
+    passthrough is unreliable; running the bridge locally avoids these issues.
+- If you cannot install `ftd2xx`, you can use `pyftdi` (libusb) as an
+    alternative after installing `libusb` on the host.
 
-Example: run the poster (device index may vary):
 
-```bash
-python3 host-ui-rx/bridge/ftdi_poster.py 2
-```
-
-Manual notify test (without FTDI):
-
-```bash
-# create a file into the received_files folder and notify the bridge
-mkdir -p received_files
-echo hi > received_files/test.txt
-curl -X POST -H "Content-Type: application/json" \
-    -d '{"filename":"test.txt","mimetype":"text/plain"}' \
-    http://127.0.0.1:8001/api/notify_new_file
-```
 ### Verifying Installation
 Run these commands to ensure all required software is properly installed:
 ```bash
@@ -167,8 +153,9 @@ docker-compose --version
 # Check Git
 git --version
 
-# Verify Docker is running
+# Verify Docker is running (TX laptop)
 docker ps
+
 ```
 ### TX LAPTOP: Establishing Ethernet/STM32 Connection
 
@@ -196,14 +183,12 @@ docker ps
 4. If the ping does **not** succeed, open your network settings and set the
    STM32’s IP to `192.168.1.10`, then try the ping again.
 
-5. If it still does not work, change the STM32’s IP to `192.168.5.10` and try
+5. If it still does not work, change the STM32’s IP to `192.168.1.50` (or any other value for the last two digits of the IP) and try
    pinging `192.168.1.10` again to verify your laptop can see the STM32.
 
     If that still fails, confirm your Ethernet adapter is connected and that
-    your laptop is on the same subnet as the STM32.
+    your laptop is on the same subnet as the STM32 (255.255.255.0).
 
-    **The IP address that works with your laptop will be used as an input for the**
-    **start up scripts, so copy this IP address to use later.**
 
 # Transmitting UI
 
@@ -228,7 +213,7 @@ docker ps
    macOS / Linux (bash / zsh)
 
     ```bash
-    STM32_IP=<your-working-ip> ./start_xcom_tx.sh
+    STM32_IP=192.168.1.10 ./start_xcom_tx.sh
     ```
 
    Windows (PowerShell)
@@ -293,32 +278,39 @@ docker ps
    automatically start the host FTDI poster if the `ftd2xx` Python binding is available
    on the host. No environment variables are required for the USB (FTDI) workflow.
 
-   macOS / Linux (bash / zsh)
+     macOS / Linux (bash / zsh)
 
-    ```bash
-    ./start_xcom_rx.sh
-    ```
+        ```bash
+        cd host-ui-rx
+        ./start_xcom_rx.sh
+        ```
 
-   Windows (PowerShell)
+     Windows (PowerShell)
 
-    If you're on Windows use the PowerShell wrapper `start_xcom_rx.ps1` (recommended) or run via `pwsh`:
+        ```powershell
+        # run from the host-ui-rx folder
+        .\start_xcom_rx.ps1
+        ```
 
-    ```powershell
-    powershell.exe -ExecutionPolicy Bypass -File "start_xcom_rx.ps1"
-    ```
+     To stop the bridge and any host helper processes:
+        ```bash
+        # on Mac/Linux
+        ./start_xcom_rx.sh stop
 
-   To stop the services:
-    ```bash
-    # on Mac/Linux
-    ./start_xcom_rx.sh stop
+        # on Windows PowerShell
+        .\start_xcom_rx.ps1 stop
+        ```
 
-    # on Windows PowerShell
-    .\start_xcom_rx.ps1 -Stop
-    ```
+     Notes:
+     - The script creates a Python virtual environment in `host-ui-rx/.venv` and
+         installs required Python packages.
+     - The bridge will start with its integrated FTDI reader (if available) and
+         will also accept notifications from the host poster `ftdi_poster.py`.
+     - If you prefer Docker for other parts of the project, you can still run
+         services in containers, but the receiver/FTDI workflow works best when
+         the bridge runs directly on the host.
 
-   NOTE: You must stop the container when finished in order to smoothly restart later.
-
-4. Open the web UI at: http://localhost:8001
+3. Open the web UI at: http://localhost:8001
 
 
 ### Receiving Your Data
@@ -326,8 +318,9 @@ docker ps
 1. Ensure the Adafruit/FPGA is connected to the RX laptop over USB (FTDI/FT232H).
 2. Ensure data has been sent from the TX laptop.
 3. The host-side `ftdi_poster.py` will capture frames from the FTDI device and
-   post notifications to the bridge so files appear in the Received files list.
-4. Click the "Open" button in the UI to view or download received files. You can also view received files in the `host-ui-rx/received_files` folder.
+    post notifications to the bridge so files appear in the Received files list.
+4. Click the "Open" button in the UI to view or download received files. 
+5. Optinoal: To check BER, you can select the `BER` button next to the file name and upload a       manually downloaded copy of the same file. 
 
 # Physical Design
 
