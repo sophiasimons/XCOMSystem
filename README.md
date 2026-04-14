@@ -289,8 +289,9 @@ docker ps
 
         ```powershell
         # run from the host-ui-rx folder
-        .\start_xcom_rx.ps1
+        powershell.exe -ExecutionPolicy Bypass -File "start_xcom_rx.ps1"
         ```
+       If this doesn't work, check you have everything installed. Or run the bridge manually by running the bridge.py file. 
 
      To stop the bridge and any host helper processes:
         ```bash

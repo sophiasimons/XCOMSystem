@@ -95,8 +95,10 @@
                 deviceInfo = `FPGA Connected (port ${response.port})`;
               } else if (response.device === 'stm32') {
                 deviceInfo = `STM32 RX Connected (port ${response.port})`;
+              } else if (response.device === 'ftdi') {
+                deviceInfo = `FTDI Connected (port ${response.port || 'USB'})`;
               } else {
-                deviceInfo = response.reason || `FPGA Connected (port ${response.port})`;
+                deviceInfo = response.reason || `Connected (port ${response.port || 'USB'})`;
               }
               console.log('Connection status: Connected -', deviceInfo);
               updateConnectionStatus(deviceInfo, false);
