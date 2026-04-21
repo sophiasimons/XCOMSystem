@@ -344,5 +344,4 @@ Attached is an image of the correct waveform for a properly tuned comparator:
 
 
 # Physical Design
-
-The team has decided to use OnShape for version control and sharing the CAD work done for the LED hood. The OnShape document can be accessed by following [this](https://cad.onshape.com/documents/160594215cd894a2421d9008/w/7cbc5794dcd9044259dca69f/e/757ea2b3c66a400e93fe81c9?renderMode=0&uiState=690cc312c9d051bd86b585a4) link.
+ All hardware design files are located [here](https://github.com/sophiasimons/XCOMSystem/tree/main/hardware).
