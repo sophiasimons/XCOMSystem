@@ -21,7 +21,7 @@ ECE4905 Capstone Project 2025-2026
     - [Programming The FPGA](#programming-the-fpga)
     - [Tuning the Comparator](#tuning-the-comparator-with-the-fpga)
 - [Physcial Design](#physical-design)
-    - [OnShape Project]
+
 # Introduction
 
 ### Terms Used in this Documentation:
